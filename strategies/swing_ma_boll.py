@@ -44,7 +44,7 @@ def get_stock_data(code='000001', start='20200101', end='20231231'):
                              start_date=start, end_date=end)
     df = df[['日期', '开盘', '最高', '最低', '收盘', '成交量']]
     df.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
-    df['date'] = bt.date2num(pd.to_datetime(df['date']))
+    df['date'] = df['date'].apply(lambda x: bt.date2num(pd.to_datetime(x)))
     return df
 
 
