@@ -9,12 +9,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 import backtrader as bt
-from backtest.data_loader import load_market_data
+from backtest.data_loader import load_market_data, resolve_date_range
 from strategies.swing_ma_boll import SwingStrategy
 
 
-def run_single_backtest(symbol, start='20200101', end='20231231', cash=100000):
+def run_single_backtest(symbol, start=None, end=None, cash=100000):
     """运行单只股票回测，返回关键指标"""
+    start, end = resolve_date_range(start, end)
     try:
         df = load_market_data(symbol, start, end)
         if len(df) < 60:
@@ -47,6 +48,8 @@ def main():
     print('=' * 60)
     print('选股回测工具 - 双均线+布林带策略')
     print('=' * 60)
+    start, end = resolve_date_range()
+    print(f'默认回测区间: {start} - {end}')
 
     print('\n正在获取沪深300成分股列表...')
     symbols = None
@@ -73,7 +76,7 @@ def main():
     results = []
     for i, symbol in enumerate(symbols, 1):
         print(f'[{i:2d}/{len(symbols)}] 回测 {symbol}...', end=' ', flush=True)
-        result = run_single_backtest(symbol)
+        result = run_single_backtest(symbol, start=start, end=end)
         if result:
             results.append(result)
             print(f"收益率: {result['total_return']:+.2f}%")

@@ -7,6 +7,7 @@ import os
 import re
 import glob
 import time
+from datetime import date, datetime
 import pandas as pd
 import akshare as ak
 
@@ -27,9 +28,86 @@ _AKSHARE_COLUMN_MAP = {
 }
 
 
+def _format_date(value):
+    """将 date/datetime/字符串日期统一成 YYYYMMDD。"""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.strftime('%Y%m%d')
+    if isinstance(value, date):
+        return value.strftime('%Y%m%d')
+
+    text = str(value).strip()
+    if re.fullmatch(r'\d{8}', text):
+        return text
+    return pd.to_datetime(text).strftime('%Y%m%d')
+
+
+def _shift_years(value, years):
+    """按年份平移日期，处理 2 月 29 日落到非闰年的情况。"""
+    try:
+        return value.replace(year=value.year + years)
+    except ValueError:
+        return value.replace(year=value.year + years, day=28)
+
+
+def get_default_date_range(years=3):
+    """返回最近 years 年的默认日期范围，格式为 (YYYYMMDD, YYYYMMDD)。"""
+    end_date = date.today()
+    start_date = _shift_years(end_date, -years)
+    return _format_date(start_date), _format_date(end_date)
+
+
+def resolve_date_range(start=None, end=None, years=3):
+    """解析可选日期边界，未传时默认最近 years 年。"""
+    default_start, default_end = get_default_date_range(years)
+    if start is None and end is None:
+        return default_start, default_end
+    if start is None:
+        end_text = _format_date(end)
+        start_date = _shift_years(pd.to_datetime(end_text).date(), -years)
+        return _format_date(start_date), end_text
+    if end is None:
+        return _format_date(start), default_end
+    return _format_date(start), _format_date(end)
+
+
+def _sanitize_filename_part(value):
+    """清理 Windows 文件名非法字符。"""
+    text = str(value or 'UNKNOWN').strip() or 'UNKNOWN'
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '', text)
+    text = re.sub(r'\s+', '', text)
+    return text or 'UNKNOWN'
+
+
+def _get_stock_name(symbol):
+    """通过 AkShare 股票列表查询股票名称，失败时返回 UNKNOWN。"""
+    try:
+        df = ak.stock_info_a_code_name()
+        column_sets = [
+            ('code', 'name'),
+            ('代码', '名称'),
+            ('证券代码', '证券简称'),
+        ]
+        for code_col, name_col in column_sets:
+            if code_col not in df.columns or name_col not in df.columns:
+                continue
+            codes = df[code_col].astype(str).str.zfill(6)
+            matched = df.loc[codes == str(symbol).zfill(6), name_col]
+            if not matched.empty:
+                return _sanitize_filename_part(matched.iloc[0])
+    except Exception as e:
+        print(f'股票名称查询失败: {e}')
+    return 'UNKNOWN'
+
+
 def _parse_filename(filepath):
-    """解析 data/{symbol}_{start(8)}_{end(8)}.csv，返回 (symbol, start, end) 或 None。"""
+    """解析新旧缓存文件名，返回 (symbol, start, end) 或 None。"""
     basename = os.path.basename(filepath)
+    m = re.match(r'^(\d+)_(.+)_(\d{8})_(\d{8})\.csv$', basename)
+    if m:
+        return m.group(1), m.group(3), m.group(4)
+
     m = re.match(r'^(\d+)_(\d{8})_(\d{8})\.csv$', basename)
     if m:
         return m.group(1), m.group(2), m.group(3)
@@ -51,6 +129,7 @@ def load_market_data(symbol, start, end):
     Raises:
         Exception: AkShare 下载失败且无可用缓存时抛出。
     """
+    start, end = resolve_date_range(start, end)
     os.makedirs(_CACHE_DIR, exist_ok=True)
 
     # ── 1. 扫描缓存 ──────────────────────────────────────
@@ -122,7 +201,8 @@ def load_market_data(symbol, start, end):
             raise RuntimeError(
                 f'所有数据源均无法获取 {symbol} 的历史数据') from last_err
 
-    cache_path = os.path.join(_CACHE_DIR, f'{symbol}_{start}_{end}.csv')
+    stock_name = _get_stock_name(symbol)
+    cache_path = os.path.join(_CACHE_DIR, f'{symbol}_{stock_name}_{start}_{end}.csv')
     df.to_csv(cache_path, index=False)
 
     df['date'] = pd.to_datetime(df['date'])

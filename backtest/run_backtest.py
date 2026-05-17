@@ -10,7 +10,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from strategies.swing_ma_boll import SwingStrategy
-from backtest.data_loader import load_market_data
+from backtest.data_loader import load_market_data, resolve_date_range
 
 
 def generate_synthetic_data(days=800, start_price=12.0, seed=42):
@@ -41,8 +41,9 @@ def generate_synthetic_data(days=800, start_price=12.0, seed=42):
     return df
 
 
-def run(symbol='000001', start='20200101', end='20231231', cash=100000):
+def run(symbol='000001', start=None, end=None, cash=100000):
     """运行回测"""
+    start, end = resolve_date_range(start, end)
     cerebro = bt.Cerebro()
 
     # 获取数据
@@ -69,8 +70,8 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='运行量化回测')
     parser.add_argument('--symbol', default='000001', help='股票代码')
-    parser.add_argument('--start', default='20200101', help='开始日期')
-    parser.add_argument('--end', default='20231231', help='结束日期')
+    parser.add_argument('--start', default=None, help='开始日期，默认当前日期近3年')
+    parser.add_argument('--end', default=None, help='结束日期，默认当前日期')
     parser.add_argument('--cash', type=float, default=100000, help='初始资金')
     args = parser.parse_args()
 
