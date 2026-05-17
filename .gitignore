@@ -10,5 +10,6 @@ logs/*.log
 .mypy_cache/
 .coverage
 htmlcov/
+.claude/
 *.pkl
 *.pkl.gz
