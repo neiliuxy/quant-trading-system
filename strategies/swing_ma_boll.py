@@ -46,5 +46,5 @@ class SwingStrategy(bt.Strategy):
         elif (self.ma_fast[0] < self.ma_slow[0] or
               self.data.close[0] < self.boll.lines.bot[0]):
             if self.signal != 0:
-                self.sell()
+                self.close()
                 self.signal = 0
