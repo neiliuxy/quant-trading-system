@@ -8,6 +8,7 @@
 """
 
 import backtrader as bt
+from strategies.base import StrategyParamSpec, StrategySpec
 
 
 class SwingStrategy(bt.Strategy):
@@ -16,12 +17,14 @@ class SwingStrategy(bt.Strategy):
         ('slow_ma', 20),
         ('risk_percent', 0.95),
         ('market_score_dict', None),
+        ('boll_period', 20),
+        ('boll_devfactor', 2.0),
     )
 
     def __init__(self):
         self.ma_fast = bt.ind.SMA(period=self.p.fast_ma)
         self.ma_slow = bt.ind.SMA(period=self.p.slow_ma)
-        self.boll = bt.ind.BollingerBands(period=20, devfactor=2)
+        self.boll = bt.ind.BollingerBands(period=self.p.boll_period, devfactor=self.p.boll_devfactor)
         self.signal = 0
 
     def next(self):
@@ -48,3 +51,17 @@ class SwingStrategy(bt.Strategy):
             if self.signal != 0:
                 self.close()
                 self.signal = 0
+
+
+SWING_MA_BOLL_SPEC = StrategySpec(
+    id='swing_ma_boll',
+    name='Swing MA + Bollinger',
+    description='Trend-following moving-average strategy with Bollinger confirmation.',
+    strategy_class=SwingStrategy,
+    params=(
+        StrategyParamSpec('fast_ma', 'Fast MA', 'int', 10),
+        StrategyParamSpec('slow_ma', 'Slow MA', 'int', 20),
+        StrategyParamSpec('boll_period', 'Bollinger Period', 'int', 20),
+        StrategyParamSpec('boll_devfactor', 'Deviation Factor', 'float', 2.0),
+    ),
+)
