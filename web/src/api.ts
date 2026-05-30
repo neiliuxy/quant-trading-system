@@ -1,4 +1,4 @@
-import type { BacktestResult, ComparisonResponse, Job } from './types';
+import type { BacktestResult, ComparisonResponse, Job, StrategySpec } from './types';
 
 export interface Stock {
   code: string;
@@ -35,12 +35,18 @@ export function createJob(payload: {
   risk_percent: number;
   fast_ma: number;
   slow_ma: number;
+  strategy_id: string;
+  strategy_params: Record<string, unknown>;
   force?: boolean;
 }): Promise<Job> {
   return request<Job>('/api/jobs', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export function listStrategies(): Promise<StrategySpec[]> {
+  return request<StrategySpec[]>('/api/strategies');
 }
 
 export function getJob(jobId: number): Promise<Job> {

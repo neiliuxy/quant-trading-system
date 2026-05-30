@@ -12,10 +12,11 @@ import {
   ComposedChart,
   ReferenceDot,
 } from 'recharts';
-import { createJob, createMarketFilterComparison, getJob, getResult, listJobs } from './api';
-import type { BacktestResult, Job } from './types';
+import { createJob, createMarketFilterComparison, getJob, getResult, listJobs, listStrategies } from './api';
+import type { BacktestResult, Job, StrategySpec } from './types';
 import { StockSelect } from './StockSelect';
 import { STOCKS } from './stocks';
+import StrategyParamsForm from './StrategyParamsForm';
 
 const defaultForm = {
   symbol: '000001',
@@ -26,6 +27,8 @@ const defaultForm = {
   risk_percent: 0.95,
   fast_ma: 10,
   slow_ma: 20,
+  strategy_id: 'swing_ma_boll',
+  strategy_params: {} as Record<string, unknown>,
 };
 
 function getDefaultStartDate(): string {
@@ -84,6 +87,8 @@ export default function App() {
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [strategies, setStrategies] = useState<StrategySpec[]>([]);
+  const [selectedStrategyId, setSelectedStrategyId] = useState('swing_ma_boll');
   const [comparisonJob, setComparisonJob] = useState<Job | null>(null);
   const [comparisonResult, setComparisonResult] = useState<BacktestResult | null>(null);
   const [zoom, setZoom] = useState({ start: 0, end: 100 });
@@ -98,6 +103,16 @@ export default function App() {
   const [dragStart, setDragStart] = useState(0);
   const [chartDateRange, setChartDateRange] = useState<{ start: string; end: string } | null>(null);
 
+  const selectedStrategy = useMemo(
+    () => strategies.find((s) => s.id === selectedStrategyId) ?? strategies[0],
+    [strategies, selectedStrategyId]
+  );
+
+  function getStrategyName(id: string): string {
+    const found = strategies.find(s => s.id === id);
+    return found?.name ?? id;
+  }
+
   async function refreshJobs() {
     const rows = await listJobs();
     setJobs(rows);
@@ -108,6 +123,16 @@ export default function App() {
 
   useEffect(() => {
     refreshJobs().catch((err) => setError(err.message));
+    listStrategies()
+      .then((specs) => {
+        setStrategies(specs);
+        if (specs.length > 0) {
+          setForm((prev) => ({ ...prev, strategy_params: Object.fromEntries(
+            (specs[0]?.params ?? []).map((p) => [p.name, p.default])
+          ) }));
+        }
+      })
+      .catch((err) => setError(err.message));
   }, []);
 
   useEffect(() => {
@@ -280,6 +305,17 @@ export default function App() {
     }
   }
 
+  async function handleStrategyChange(id: string) {
+    setSelectedStrategyId(id);
+    const spec = strategies.find((s) => s.id === id);
+    if (spec) {
+      const defaults = Object.fromEntries(
+        spec.params.map((p) => [p.name, p.default])
+      );
+      setForm((prev) => ({ ...prev, strategy_id: id, strategy_params: defaults }));
+    }
+  }
+
   const toggleLineVisibility = (line: keyof LineVisibility) => {
     setLineVisibility(prev => ({
       ...prev,
@@ -325,6 +361,23 @@ export default function App() {
             <input type="checkbox" checked={form.use_market_filter} onChange={(e) => setForm({ ...form, use_market_filter: e.target.checked })} />
             市场过滤器
           </label>
+          <label>策略
+            <select
+              value={selectedStrategyId}
+              onChange={(e) => handleStrategyChange(e.target.value)}
+            >
+              {strategies.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </label>
+          {selectedStrategy && (
+            <StrategyParamsForm
+              spec={selectedStrategy}
+              value={form.strategy_params}
+              onChange={(params) => setForm((prev) => ({ ...prev, strategy_params: params }))}
+            />
+          )}
           <button className="primary" type="submit" disabled={submitting}>
             <Play size={16} /> 开始回测
           </button>
@@ -353,7 +406,7 @@ export default function App() {
           <div className="result-header">
             <div>
               <h2>{selectedJob.symbol} {getStockName(selectedJob.symbol)} 回测</h2>
-              <p>{selectedJob.start_date} 至 {selectedJob.end_date} · {selectedJob.cache_hit ? '缓存命中' : '新任务'}</p>
+              <p>{selectedJob.start_date} 至 {selectedJob.end_date} · {selectedJob.cache_hit ? '缓存命中' : '新任务'} · {getStrategyName(selectedJob.strategy_id)}</p>
             </div>
             <StatusBadge status={selectedJob.status} />
           </div>

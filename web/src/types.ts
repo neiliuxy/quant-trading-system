@@ -1,5 +1,19 @@
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
+export interface StrategyParamSpec {
+  name: string;
+  label: string;
+  type: 'int' | 'float' | 'string' | 'bool';
+  default: number | string | boolean;
+}
+
+export interface StrategySpec {
+  id: string;
+  name: string;
+  description: string;
+  params: StrategyParamSpec[];
+}
+
 export interface Job {
   id: number;
   run_key: string;
@@ -12,6 +26,8 @@ export interface Job {
   risk_percent: number;
   fast_ma: number;
   slow_ma: number;
+  strategy_id: string;
+  strategy_params_json: string;
   code_version: string;
   cache_hit: boolean;
   error: string | null;
