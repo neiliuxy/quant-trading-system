@@ -90,9 +90,9 @@ export default function App() {
   const [lineVisibility, setLineVisibility] = useState<LineVisibility>({
     equity: true,
     totalScore: true,
-    trendScore: true,
-    sentimentScore: true,
-    volumeScore: true,
+    trendScore: false,
+    sentimentScore: false,
+    volumeScore: false,
   });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(0);
