@@ -15,6 +15,12 @@ def test_run_key_changes_with_code_version():
     assert a != b
 
 
+def test_run_key_changes_when_only_strategy_changes():
+    req_a = BacktestRequest(symbol='000001', start='20240101', end='20240630', strategy_id='swing_ma_boll')
+    req_b = BacktestRequest(symbol='000001', start='20240101', end='20240630', strategy_id='bollinger_reversal')
+    assert run_key_for_request(req_a, code_version='abc123') != run_key_for_request(req_b, code_version='abc123')
+
+
 def test_create_and_reuse_completed_job(tmp_path):
     db_path = tmp_path / 'jobs.sqlite'
     conn = init_db(str(db_path))

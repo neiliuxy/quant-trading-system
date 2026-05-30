@@ -38,6 +38,23 @@ def test_run_backtest_service_returns_serializable_result(monkeypatch):
     assert payload['equity_curve'][0]['date'].isdigit()
 
 
+def test_run_backtest_service_accepts_strategy_params(monkeypatch):
+    from backtest.run_backtest import generate_synthetic_data
+    df = generate_synthetic_data(start='20240101', end='20240630')
+    monkeypatch.setattr('backtest.service.load_market_data', lambda symbol, start, end: df.copy())
+    request = BacktestRequest(
+        symbol='000001',
+        start='20240101',
+        end='20240630',
+        cash=100000.0,
+        use_market_filter=False,
+        strategy_id='bollinger_reversal',
+        strategy_params={'boll_period': 20, 'boll_devfactor': 2.0},
+    )
+    result = run_backtest_service(request)
+    assert result.symbol == '000001'
+
+
 def test_market_filter_scores_are_exposed(monkeypatch):
     df = generate_synthetic_data(start='20240101', end='20240630')
 

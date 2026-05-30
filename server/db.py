@@ -13,6 +13,14 @@ def connect(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+def _migrate_jobs_schema(conn: sqlite3.Connection) -> None:
+    columns = {row['name'] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()}
+    if 'strategy_id' not in columns:
+        conn.execute("ALTER TABLE jobs ADD COLUMN strategy_id TEXT NOT NULL DEFAULT 'swing_ma_boll'")
+    if 'strategy_params_json' not in columns:
+        conn.execute("ALTER TABLE jobs ADD COLUMN strategy_params_json TEXT NOT NULL DEFAULT '{}'")
+
+
 def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
     conn = connect(db_path)
     conn.executescript(
@@ -51,5 +59,6 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
         );
         """
     )
+    _migrate_jobs_schema(conn)
     conn.commit()
     return conn

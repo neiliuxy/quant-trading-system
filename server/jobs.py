@@ -55,12 +55,15 @@ def create_or_reuse_job(conn, request: BacktestRequest, code_version: str | None
         """
         INSERT INTO jobs (
             run_key, status, symbol, start_date, end_date, cash, use_market_filter,
-            risk_percent, fast_ma, slow_ma, code_version, cache_hit
-        ) VALUES (?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            risk_percent, fast_ma, slow_ma, strategy_id, strategy_params_json, code_version, cache_hit
+        ) VALUES (?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         """,
         (
             run_key, req.symbol, req.start, req.end, req.cash, int(req.use_market_filter),
-            req.risk_percent, req.fast_ma, req.slow_ma, version,
+            req.risk_percent, int(req.strategy_params.get('fast_ma', 10)),
+            int(req.strategy_params.get('slow_ma', 20)),
+            req.strategy_id, json.dumps(req.strategy_params, sort_keys=True, separators=(',', ':')),
+            version,
         ),
     )
     conn.commit()
@@ -85,6 +88,10 @@ def update_job_status(conn, job_id: int, status: str, error: str | None = None) 
 
 
 def request_from_job(job: dict[str, Any]) -> BacktestRequest:
+    strategy_params = json.loads(job.get('strategy_params_json', '{}'))
+    # Merge legacy fast_ma/slow_ma from DB columns into params for backward compat
+    strategy_params.setdefault('fast_ma', int(job.get('fast_ma', 10)))
+    strategy_params.setdefault('slow_ma', int(job.get('slow_ma', 20)))
     return BacktestRequest(
         symbol=job['symbol'],
         start=job['start_date'],
@@ -92,8 +99,10 @@ def request_from_job(job: dict[str, Any]) -> BacktestRequest:
         cash=float(job['cash']),
         use_market_filter=bool(job['use_market_filter']),
         risk_percent=float(job['risk_percent']),
-        fast_ma=int(job['fast_ma']),
-        slow_ma=int(job['slow_ma']),
+        fast_ma=int(job.get('fast_ma', 10)),
+        slow_ma=int(job.get('slow_ma', 20)),
+        strategy_id=job.get('strategy_id', 'swing_ma_boll'),
+        strategy_params=strategy_params,
     )
 
 

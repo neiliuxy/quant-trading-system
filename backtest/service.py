@@ -8,7 +8,7 @@ import pandas as pd
 
 from backtest.data_loader import load_market_data, resolve_date_range
 from market.market_analyzer import MarketConfig, get_market_score
-from strategies.swing_ma_boll import SwingStrategy
+from strategies.registry import get_strategy_spec
 
 
 @dataclass(frozen=True)
@@ -21,9 +21,20 @@ class BacktestRequest:
     risk_percent: float = 0.95
     fast_ma: int = 10
     slow_ma: int = 20
+    strategy_id: str = 'swing_ma_boll'
+    strategy_params: dict[str, Any] = field(default_factory=dict)
 
     def normalized(self) -> 'BacktestRequest':
         start, end = resolve_date_range(self.start, self.end)
+        try:
+            spec = get_strategy_spec(self.strategy_id)
+        except KeyError:
+            raise ValueError(f"Unknown strategy_id: '{self.strategy_id}'")
+        unknown = set(self.strategy_params) - {param.name for param in spec.params}
+        if unknown:
+            raise ValueError(f"Unknown strategy params for {self.strategy_id}: {sorted(unknown)}")
+        merged_params = dict(spec.defaults)
+        merged_params.update(self.strategy_params)
         return BacktestRequest(
             symbol=str(self.symbol).zfill(6),
             start=start,
@@ -33,6 +44,8 @@ class BacktestRequest:
             risk_percent=float(self.risk_percent),
             fast_ma=int(self.fast_ma),
             slow_ma=int(self.slow_ma),
+            strategy_id=self.strategy_id,
+            strategy_params=merged_params,
         )
 
 
@@ -118,6 +131,7 @@ def _market_score_payload(start: str, end: str, enabled: bool) -> tuple[dict[str
 
 def run_backtest_service(request: BacktestRequest) -> BacktestResult:
     req = request.normalized()
+    spec = get_strategy_spec(req.strategy_id)
     score_dict, score_rows, score_summary = _market_score_payload(
         req.start, req.end, req.use_market_filter
     )
@@ -127,13 +141,13 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
 
     cerebro = bt.Cerebro()
     cerebro.adddata(data)
-    cerebro.addstrategy(
-        SwingStrategy,
-        fast_ma=req.fast_ma,
-        slow_ma=req.slow_ma,
-        risk_percent=req.risk_percent,
-        market_score_dict=score_dict,
-    )
+    strategy_kwargs = dict(req.strategy_params)
+    strategy_kwargs['risk_percent'] = req.risk_percent
+    strategy_kwargs['market_score_dict'] = score_dict
+    # Only pass params the strategy class actually declares
+    strategy_param_names = set(spec.strategy_class.params._getkeys())
+    strategy_kwargs = {k: v for k, v in strategy_kwargs.items() if k in strategy_param_names}
+    cerebro.addstrategy(spec.strategy_class, **strategy_kwargs)
     cerebro.broker.setcash(req.cash)
     cerebro.addanalyzer(EquityCurveAnalyzer, _name='equity')
     cerebro.addanalyzer(TradeListAnalyzer, _name='trades')
