@@ -27,8 +27,15 @@ function formatPct(value: number) {
   return `${value.toFixed(2)}%`;
 }
 
+const statusLabels: Record<string, string> = {
+  'queued': '等待中',
+  'running': '运行中',
+  'completed': '已完成',
+  'failed': '失败',
+};
+
 function StatusBadge({ status }: { status: string }) {
-  return <span className={`status status-${status}`}>{status}</span>;
+  return <span className={`status status-${status}`}>{statusLabels[status] || status}</span>;
 }
 
 export default function App() {
@@ -104,12 +111,12 @@ export default function App() {
   const kpis = useMemo(() => {
     if (!result) return [];
     return [
-      ['Return', formatPct(result.total_return_pct)],
-      ['Max Drawdown', formatPct(result.max_drawdown_pct)],
-      ['Win Rate', formatPct(result.win_rate_pct)],
-      ['Trades', String(result.trade_count)],
-      ['Final Value', result.final_value.toFixed(2)],
-      ['Score Mean', result.market_score_summary.mean?.toFixed(2) ?? 'N/A'],
+      ['收益率', formatPct(result.total_return_pct)],
+      ['最大回撤', formatPct(result.max_drawdown_pct)],
+      ['胜率', formatPct(result.win_rate_pct)],
+      ['交易数', String(result.trade_count)],
+      ['最终价值', result.final_value.toFixed(2)],
+      ['评分均值', result.market_score_summary.mean?.toFixed(2) ?? 'N/A'],
     ];
   }, [result]);
 
@@ -147,32 +154,32 @@ export default function App() {
           <Activity size={22} />
           <div>
             <h1>QuantX</h1>
-            <p>Backtest research workbench</p>
+            <p>回测研究工作台</p>
           </div>
         </div>
 
         <form className="run-form" onSubmit={(event) => { event.preventDefault(); submit(false); }}>
-          <label>Symbol<input value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })} /></label>
-          <label>Start<input value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></label>
-          <label>End<input value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></label>
-          <label>Cash<input type="number" value={form.cash} onChange={(e) => setForm({ ...form, cash: Number(e.target.value) })} /></label>
+          <label>代码<input value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })} /></label>
+          <label>开始日期<input value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></label>
+          <label>结束日期<input value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></label>
+          <label>初始资金<input type="number" value={form.cash} onChange={(e) => setForm({ ...form, cash: Number(e.target.value) })} /></label>
           <label className="check-row">
             <input type="checkbox" checked={form.use_market_filter} onChange={(e) => setForm({ ...form, use_market_filter: e.target.checked })} />
-            Market filter
+            市场过滤器
           </label>
           <button className="primary" type="submit" disabled={submitting}>
-            <Play size={16} /> Start backtest
+            <Play size={16} /> 开始回测
           </button>
           <button className="secondary" type="button" onClick={() => submit(true)} disabled={submitting || !selectedJob}>
-            <RefreshCcw size={16} /> Force rerun
+            <RefreshCcw size={16} /> 强制重新运行
           </button>
           <button className="secondary" type="button" onClick={compareMarketFilter} disabled={!selectedJob}>
-            Compare filter
+            对比过滤器
           </button>
         </form>
 
         <section className="history">
-          <h2>History</h2>
+          <h2>历史记录</h2>
           {jobs.map((job) => (
             <button key={job.id} className="history-item" onClick={() => setSelectedJob(job)}>
               <span>{job.symbol} {job.start_date}-{job.end_date}</span>
@@ -187,8 +194,8 @@ export default function App() {
         {selectedJob && (
           <div className="result-header">
             <div>
-              <h2>{selectedJob.symbol} Backtest</h2>
-              <p>{selectedJob.start_date} to {selectedJob.end_date} · {selectedJob.cache_hit ? 'Cache hit' : 'Fresh task'}</p>
+              <h2>{selectedJob.symbol} 回测</h2>
+              <p>{selectedJob.start_date} 至 {selectedJob.end_date} · {selectedJob.cache_hit ? '缓存命中' : '新任务'}</p>
             </div>
             <StatusBadge status={selectedJob.status} />
           </div>
@@ -207,24 +214,24 @@ export default function App() {
 
             {comparisonJob && (
               <section className="panel">
-                <h3>Market Filter Comparison</h3>
+                <h3>市场过滤器对比</h3>
                 {comparisonResult ? (
                   <div className="comparison-grid">
-                    <div><span>Base return</span><strong>{formatPct(result.total_return_pct)}</strong></div>
-                    <div><span>Compare return</span><strong>{formatPct(comparisonResult.total_return_pct)}</strong></div>
-                    <div><span>Base drawdown</span><strong>{formatPct(result.max_drawdown_pct)}</strong></div>
-                    <div><span>Compare drawdown</span><strong>{formatPct(comparisonResult.max_drawdown_pct)}</strong></div>
-                    <div><span>Base trades</span><strong>{result.trade_count}</strong></div>
-                    <div><span>Compare trades</span><strong>{comparisonResult.trade_count}</strong></div>
+                    <div><span>基础收益</span><strong>{formatPct(result.total_return_pct)}</strong></div>
+                    <div><span>对比收益</span><strong>{formatPct(comparisonResult.total_return_pct)}</strong></div>
+                    <div><span>基础回撤</span><strong>{formatPct(result.max_drawdown_pct)}</strong></div>
+                    <div><span>对比回撤</span><strong>{formatPct(comparisonResult.max_drawdown_pct)}</strong></div>
+                    <div><span>基础交易</span><strong>{result.trade_count}</strong></div>
+                    <div><span>对比交易</span><strong>{comparisonResult.trade_count}</strong></div>
                   </div>
                 ) : (
-                  <p>Comparison job #{comparisonJob.id} is {comparisonJob.status}.</p>
+                  <p>对比任务 #{comparisonJob.id} 状态：{statusLabels[comparisonJob.status] || comparisonJob.status}</p>
                 )}
               </section>
             )}
 
             <section className="panel">
-              <h3>Equity Curve</h3>
+              <h3>权益曲线</h3>
               <ResponsiveContainer width="100%" height={320}>
                 <LineChart data={result.equity_curve}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -237,7 +244,7 @@ export default function App() {
             </section>
 
             <section className="panel">
-              <h3>Market Scores</h3>
+              <h3>市场评分</h3>
               <ResponsiveContainer width="100%" height={240}>
                 <LineChart data={result.market_scores}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -253,9 +260,9 @@ export default function App() {
             </section>
 
             <section className="panel">
-              <h3>Trades</h3>
+              <h3>交易记录</h3>
               <table>
-                <thead><tr><th>Date</th><th>PnL</th><th>PnL Comm</th><th>Bars</th></tr></thead>
+                <thead><tr><th>日期</th><th>盈亏</th><th>盈亏(含手续费)</th><th>持仓周期</th></tr></thead>
                 <tbody>
                   {result.trades.map((trade, index) => (
                     <tr key={`${trade.date}-${index}`}>
@@ -270,7 +277,7 @@ export default function App() {
             </section>
           </>
         ) : (
-          <div className="empty-state">Submit or select a completed job to view results.</div>
+          <div className="empty-state">提交或选择已完成的任务以查看结果。</div>
         )}
       </section>
     </main>
