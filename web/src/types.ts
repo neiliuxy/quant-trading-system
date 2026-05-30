@@ -40,3 +40,8 @@ export interface BacktestResult {
   }>;
   market_score_summary: Record<string, number>;
 }
+
+export interface ComparisonResponse {
+  source_job_id: number;
+  comparison_job: Job;
+}

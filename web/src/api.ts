@@ -1,4 +1,4 @@
-import type { BacktestResult, Job } from './types';
+import type { BacktestResult, ComparisonResponse, Job } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000';
 
@@ -41,4 +41,10 @@ export function getJob(jobId: number): Promise<Job> {
 
 export function getResult(jobId: number): Promise<BacktestResult> {
   return request<BacktestResult>(`/api/jobs/${jobId}/result`);
+}
+
+export function createMarketFilterComparison(jobId: number): Promise<ComparisonResponse> {
+  return request<ComparisonResponse>(`/api/jobs/${jobId}/compare-market-filter`, {
+    method: 'POST',
+  });
 }

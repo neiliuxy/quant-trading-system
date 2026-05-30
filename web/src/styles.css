@@ -46,3 +46,27 @@ th { color: #627282; font-size: 12px; }
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .content-panel { padding: 16px; }
 }
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 12px;
+}
+.comparison-grid div {
+  border: 1px solid #e5ebf1;
+  border-radius: 6px;
+  padding: 12px;
+}
+.comparison-grid span {
+  display: block;
+  color: #627282;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.comparison-grid strong {
+  font-size: 18px;
+}
+@media (max-width: 700px) {
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+}

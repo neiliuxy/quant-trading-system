@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { createJob, getJob, getResult, listJobs } from './api';
+import { createJob, createMarketFilterComparison, getJob, getResult, listJobs } from './api';
 import type { BacktestResult, Job } from './types';
 
 const defaultForm = {
@@ -38,6 +38,8 @@ export default function App() {
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [comparisonJob, setComparisonJob] = useState<Job | null>(null);
+  const [comparisonResult, setComparisonResult] = useState<BacktestResult | null>(null);
 
   async function refreshJobs() {
     const rows = await listJobs();
@@ -77,6 +79,28 @@ export default function App() {
     };
   }, [selectedJob?.id]);
 
+  useEffect(() => {
+    if (!comparisonJob) return;
+    let cancelled = false;
+    async function pollComparison() {
+      const latest = await getJob(comparisonJob.id);
+      if (cancelled) return;
+      setComparisonJob(latest);
+      if (latest.status === 'completed') {
+        const payload = await getResult(latest.id);
+        if (!cancelled) setComparisonResult(payload);
+      }
+    }
+    pollComparison().catch((err) => setError(err.message));
+    const handle = window.setInterval(() => {
+      pollComparison().catch((err) => setError(err.message));
+    }, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(handle);
+    };
+  }, [comparisonJob?.id]);
+
   const kpis = useMemo(() => {
     if (!result) return [];
     return [
@@ -100,6 +124,19 @@ export default function App() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function compareMarketFilter() {
+    if (!selectedJob) return;
+    setError(null);
+    try {
+      const response = await createMarketFilterComparison(selectedJob.id);
+      setComparisonJob(response.comparison_job);
+      setComparisonResult(null);
+      await refreshJobs();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -128,6 +165,9 @@ export default function App() {
           </button>
           <button className="secondary" type="button" onClick={() => submit(true)} disabled={submitting || !selectedJob}>
             <RefreshCcw size={16} /> Force rerun
+          </button>
+          <button className="secondary" type="button" onClick={compareMarketFilter} disabled={!selectedJob}>
+            Compare filter
           </button>
         </form>
 
@@ -164,6 +204,24 @@ export default function App() {
                 </div>
               ))}
             </div>
+
+            {comparisonJob && (
+              <section className="panel">
+                <h3>Market Filter Comparison</h3>
+                {comparisonResult ? (
+                  <div className="comparison-grid">
+                    <div><span>Base return</span><strong>{formatPct(result.total_return_pct)}</strong></div>
+                    <div><span>Compare return</span><strong>{formatPct(comparisonResult.total_return_pct)}</strong></div>
+                    <div><span>Base drawdown</span><strong>{formatPct(result.max_drawdown_pct)}</strong></div>
+                    <div><span>Compare drawdown</span><strong>{formatPct(comparisonResult.max_drawdown_pct)}</strong></div>
+                    <div><span>Base trades</span><strong>{result.trade_count}</strong></div>
+                    <div><span>Compare trades</span><strong>{comparisonResult.trade_count}</strong></div>
+                  </div>
+                ) : (
+                  <p>Comparison job #{comparisonJob.id} is {comparisonJob.status}.</p>
+                )}
+              </section>
+            )}
 
             <section className="panel">
               <h3>Equity Curve</h3>
