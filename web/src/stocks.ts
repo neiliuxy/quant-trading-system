@@ -125,7 +125,52 @@ export function getStockLabel(code: string): string {
 export function searchStocks(query: string): typeof STOCKS {
   if (!query) return STOCKS;
   const q = query.toLowerCase();
-  return STOCKS.filter(s =>
-    s.code.includes(q) || s.name.toLowerCase().includes(q)
-  );
+
+  // Fuzzy match: split query into characters and find stocks containing all of them in order
+  const fuzzyMatch = (text: string, pattern: string): boolean => {
+    let patternIdx = 0;
+    for (let i = 0; i < text.length && patternIdx < pattern.length; i++) {
+      if (text[i] === pattern[patternIdx]) {
+        patternIdx++;
+      }
+    }
+    return patternIdx === pattern.length;
+  };
+
+  return STOCKS.filter(s => {
+    const code = s.code.toLowerCase();
+    const name = s.name.toLowerCase();
+
+    // Exact match or prefix match gets highest priority
+    if (code.startsWith(q) || name.startsWith(q)) return true;
+
+    // Substring match
+    if (code.includes(q) || name.includes(q)) return true;
+
+    // Fuzzy match
+    if (fuzzyMatch(code, q) || fuzzyMatch(name, q)) return true;
+
+    return false;
+  }).sort((a, b) => {
+    // Sort by relevance
+    const aCode = a.code.toLowerCase();
+    const aName = a.name.toLowerCase();
+    const bCode = b.code.toLowerCase();
+    const bName = b.name.toLowerCase();
+
+    // Prefix match first
+    if (aCode.startsWith(q) && !bCode.startsWith(q)) return -1;
+    if (!aCode.startsWith(q) && bCode.startsWith(q)) return 1;
+    if (aName.startsWith(q) && !bName.startsWith(q)) return -1;
+    if (!aName.startsWith(q) && bName.startsWith(q)) return 1;
+
+    // Then substring match
+    if (aCode.includes(q) && !bCode.includes(q)) return -1;
+    if (!aCode.includes(q) && bCode.includes(q)) return 1;
+    if (aName.includes(q) && !bName.includes(q)) return -1;
+    if (!aName.includes(q) && bName.includes(q)) return 1;
+
+    // Default: alphabetical
+    return a.code.localeCompare(b.code);
+  });
 }
