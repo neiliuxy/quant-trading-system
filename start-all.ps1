@@ -21,17 +21,17 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# Create logs directory if it doesn't exist
+if (!(Test-Path "$PSScriptRoot\logs")) {
+    New-Item -ItemType Directory -Path "$PSScriptRoot\logs" | Out-Null
+}
+
 Write-Host "Starting Backend API Server..." -ForegroundColor Green
 Write-Host "  - http://127.0.0.1:8000" -ForegroundColor Cyan
 Write-Host ""
 
 # Start backend in background (no new window)
 $backendProcess = Start-Process python -ArgumentList "-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8000", "--reload" -PassThru -NoNewWindow -RedirectStandardOutput "$PSScriptRoot\logs\backend.log" -RedirectStandardError "$PSScriptRoot\logs\backend-error.log"
-
-# Create logs directory if it doesn't exist
-if (!(Test-Path "$PSScriptRoot\logs")) {
-    New-Item -ItemType Directory -Path "$PSScriptRoot\logs" | Out-Null
-}
 
 # Wait for backend to start
 Start-Sleep -Seconds 3
@@ -40,8 +40,8 @@ Write-Host "Starting Frontend Development Server..." -ForegroundColor Green
 Write-Host "  - http://127.0.0.1:5173" -ForegroundColor Cyan
 Write-Host ""
 
-# Start frontend in background (no new window)
-$frontendProcess = Start-Process npm -ArgumentList "run", "dev" -PassThru -NoNewWindow -WorkingDirectory "$PSScriptRoot\web" -RedirectStandardOutput "$PSScriptRoot\logs\frontend.log" -RedirectStandardError "$PSScriptRoot\logs\frontend-error.log"
+# Start frontend using cmd /c to properly handle npm.cmd
+$frontendProcess = Start-Process cmd -ArgumentList "/c", "cd /d `"$PSScriptRoot\web`" && npm run dev" -PassThru -NoNewWindow -RedirectStandardOutput "$PSScriptRoot\logs\frontend.log" -RedirectStandardError "$PSScriptRoot\logs\frontend-error.log"
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green
@@ -70,4 +70,5 @@ Start-Process "http://127.0.0.1:5173"
 
 Write-Host "Dashboard opened in browser." -ForegroundColor Cyan
 Write-Host ""
+
 
