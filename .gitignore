@@ -11,5 +11,15 @@ logs/*.log
 .coverage
 htmlcov/
 .claude/
+.pi/
+.codegraph/
 *.pkl
 *.pkl.gz
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+data/results/
+web/node_modules/
+web/dist/
+web/.vite/
+.superpowers/

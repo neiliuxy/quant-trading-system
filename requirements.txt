@@ -1,0 +1,9 @@
+akshare
+backtrader
+fastapi
+httpx
+numpy
+pandas
+pydantic
+pytest
+uvicorn[standard]
