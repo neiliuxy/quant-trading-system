@@ -98,8 +98,51 @@ th { color: #627282; font-size: 12px; }
   color: #2563eb;
 }
 
-.zoom-btn:active {
+.line-toggles {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #f4f6f8;
+  border-radius: 6px;
+}
+
+.toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid #cbd5df;
+  border-radius: 4px;
+  background: #fff;
+  color: #405060;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.toggle-btn:hover {
   background: #e8edf3;
+  border-color: #2563eb;
+}
+
+.toggle-btn.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.chart-container {
+  user-select: none;
+  margin-bottom: 12px;
+}
+
+.chart-hint {
+  font-size: 12px;
+  color: #627282;
+  margin: 8px 0 0;
+  text-align: center;
 }
 @media (max-width: 700px) {
   .comparison-grid {

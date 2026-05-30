@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Play, RefreshCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { Activity, Play, RefreshCcw, ZoomIn, ZoomOut, Eye, EyeOff } from 'lucide-react';
 import {
   CartesianGrid,
   Legend,
@@ -9,6 +9,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  ComposedChart,
 } from 'recharts';
 import { createJob, createMarketFilterComparison, getJob, getResult, listJobs } from './api';
 import type { BacktestResult, Job } from './types';
@@ -46,6 +47,14 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status status-${status}`}>{statusLabels[status] || status}</span>;
 }
 
+interface LineVisibility {
+  equity: boolean;
+  totalScore: boolean;
+  trendScore: boolean;
+  sentimentScore: boolean;
+  volumeScore: boolean;
+}
+
 export default function App() {
   const [form, setForm] = useState(defaultForm);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -55,8 +64,16 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false);
   const [comparisonJob, setComparisonJob] = useState<Job | null>(null);
   const [comparisonResult, setComparisonResult] = useState<BacktestResult | null>(null);
-  const [equityZoom, setEquityZoom] = useState({ start: 0, end: 100 });
-  const [marketZoom, setMarketZoom] = useState({ start: 0, end: 100 });
+  const [zoom, setZoom] = useState({ start: 0, end: 100 });
+  const [lineVisibility, setLineVisibility] = useState<LineVisibility>({
+    equity: true,
+    totalScore: true,
+    trendScore: true,
+    sentimentScore: true,
+    volumeScore: true,
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState(0);
 
   async function refreshJobs() {
     const rows = await listJobs();
@@ -130,21 +147,61 @@ export default function App() {
     ];
   }, [result]);
 
-  const filteredEquityData = useMemo(() => {
+  const mergedData = useMemo(() => {
     if (!result) return [];
-    const data = result.equity_curve;
-    const start = Math.floor((data.length * equityZoom.start) / 100);
-    const end = Math.ceil((data.length * equityZoom.end) / 100);
-    return data.slice(start, end);
-  }, [result, equityZoom]);
+    const equityMap = new Map(result.equity_curve.map(e => [e.date, { ...e, type: 'equity' }]));
+    const marketMap = new Map(result.market_scores.map(m => [m.date, { ...m, type: 'market' }]));
 
-  const filteredMarketData = useMemo(() => {
-    if (!result) return [];
-    const data = result.market_scores;
-    const start = Math.floor((data.length * marketZoom.start) / 100);
-    const end = Math.ceil((data.length * marketZoom.end) / 100);
-    return data.slice(start, end);
-  }, [result, marketZoom]);
+    const allDates = new Set([...equityMap.keys(), ...marketMap.keys()]);
+    const merged = Array.from(allDates).map(date => ({
+      date,
+      value: equityMap.get(date)?.value,
+      total_score: marketMap.get(date)?.total_score,
+      trend_score: marketMap.get(date)?.trend_score,
+      sentiment_score: marketMap.get(date)?.sentiment_score,
+      volume_score: marketMap.get(date)?.volume_score,
+    }));
+
+    return merged.sort((a, b) => a.date.localeCompare(b.date));
+  }, [result]);
+
+  const filteredData = useMemo(() => {
+    if (!mergedData.length) return [];
+    const start = Math.floor((mergedData.length * zoom.start) / 100);
+    const end = Math.ceil((mergedData.length * zoom.end) / 100);
+    return mergedData.slice(start, end);
+  }, [mergedData, zoom]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStart(e.clientX);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    const delta = e.clientX - dragStart;
+    const range = zoom.end - zoom.start;
+    const movePercent = (delta / 800) * 100; // 800px is approximate chart width
+
+    let newStart = zoom.start - movePercent;
+    let newEnd = zoom.end - movePercent;
+
+    if (newStart < 0) {
+      newStart = 0;
+      newEnd = range;
+    }
+    if (newEnd > 100) {
+      newEnd = 100;
+      newStart = 100 - range;
+    }
+
+    setZoom({ start: newStart, end: newEnd });
+    setDragStart(e.clientX);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
 
   async function submit(force = false) {
     setSubmitting(true);
@@ -172,6 +229,13 @@ export default function App() {
       setError(err instanceof Error ? err.message : String(err));
     }
   }
+
+  const toggleLineVisibility = (line: keyof LineVisibility) => {
+    setLineVisibility(prev => ({
+      ...prev,
+      [line]: !prev[line],
+    }));
+  };
 
   return (
     <main className="app-shell">
@@ -376,83 +440,152 @@ export default function App() {
 
             <section className="panel">
               <div className="chart-header">
-                <h3>权益曲线</h3>
+                <h3>权益曲线 & 市场评分</h3>
                 <div className="zoom-controls">
                   <button
                     className="zoom-btn"
-                    onClick={() => setEquityZoom({ start: Math.max(0, equityZoom.start - 10), end: Math.min(100, equityZoom.end + 10) })}
+                    onClick={() => setZoom({ start: Math.max(0, zoom.start - 10), end: Math.min(100, zoom.end + 10) })}
                     title="缩小（显示更多数据）"
                   >
                     <ZoomOut size={16} /> 缩小
                   </button>
                   <button
                     className="zoom-btn"
-                    onClick={() => setEquityZoom({ start: Math.min(50, equityZoom.start + 10), end: Math.max(50, equityZoom.end - 10) })}
+                    onClick={() => setZoom({ start: Math.min(50, zoom.start + 10), end: Math.max(50, zoom.end - 10) })}
                     title="放大（显示更少数据）"
                   >
                     <ZoomIn size={16} /> 放大
                   </button>
                   <button
                     className="zoom-btn"
-                    onClick={() => setEquityZoom({ start: 0, end: 100 })}
+                    onClick={() => setZoom({ start: 0, end: 100 })}
                     title="重置"
                   >
                     重置
                   </button>
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={filteredEquityData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" minTickGap={32} />
-                  <YAxis domain={['auto', 'auto']} />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="value" stroke="#2563eb" dot={false} strokeWidth={2} name="权益价值" />
-                </LineChart>
-              </ResponsiveContainer>
-            </section>
 
-            <section className="panel">
-              <div className="chart-header">
-                <h3>市场评分</h3>
-                <div className="zoom-controls">
-                  <button
-                    className="zoom-btn"
-                    onClick={() => setMarketZoom({ start: Math.max(0, marketZoom.start - 10), end: Math.min(100, marketZoom.end + 10) })}
-                    title="缩小（显示更多数据）"
-                  >
-                    <ZoomOut size={16} /> 缩小
-                  </button>
-                  <button
-                    className="zoom-btn"
-                    onClick={() => setMarketZoom({ start: Math.min(50, marketZoom.start + 10), end: Math.max(50, marketZoom.end - 10) })}
-                    title="放大（显示更少数据）"
-                  >
-                    <ZoomIn size={16} /> 放大
-                  </button>
-                  <button
-                    className="zoom-btn"
-                    onClick={() => setMarketZoom({ start: 0, end: 100 })}
-                    title="重置"
-                  >
-                    重置
-                  </button>
-                </div>
+              <div className="line-toggles">
+                <button
+                  className={`toggle-btn ${lineVisibility.equity ? 'active' : ''}`}
+                  onClick={() => toggleLineVisibility('equity')}
+                  title="Toggle equity curve"
+                >
+                  {lineVisibility.equity ? <Eye size={14} /> : <EyeOff size={14} />}
+                  权益价值
+                </button>
+                <button
+                  className={`toggle-btn ${lineVisibility.totalScore ? 'active' : ''}`}
+                  onClick={() => toggleLineVisibility('totalScore')}
+                  title="Toggle total score"
+                >
+                  {lineVisibility.totalScore ? <Eye size={14} /> : <EyeOff size={14} />}
+                  总评分
+                </button>
+                <button
+                  className={`toggle-btn ${lineVisibility.trendScore ? 'active' : ''}`}
+                  onClick={() => toggleLineVisibility('trendScore')}
+                  title="Toggle trend score"
+                >
+                  {lineVisibility.trendScore ? <Eye size={14} /> : <EyeOff size={14} />}
+                  趋势评分
+                </button>
+                <button
+                  className={`toggle-btn ${lineVisibility.sentimentScore ? 'active' : ''}`}
+                  onClick={() => toggleLineVisibility('sentimentScore')}
+                  title="Toggle sentiment score"
+                >
+                  {lineVisibility.sentimentScore ? <Eye size={14} /> : <EyeOff size={14} />}
+                  情绪评分
+                </button>
+                <button
+                  className={`toggle-btn ${lineVisibility.volumeScore ? 'active' : ''}`}
+                  onClick={() => toggleLineVisibility('volumeScore')}
+                  title="Toggle volume score"
+                >
+                  {lineVisibility.volumeScore ? <Eye size={14} /> : <EyeOff size={14} />}
+                  成交量评分
+                </button>
               </div>
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={filteredMarketData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" minTickGap={32} />
-                  <YAxis domain={[0, 1]} />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="total_score" stroke="#0f766e" dot={false} strokeWidth={2} name="总评分" />
-                  <Line type="monotone" dataKey="trend_score" stroke="#f59e0b" dot={false} name="趋势评分" />
-                  <Line type="monotone" dataKey="sentiment_score" stroke="#7c3aed" dot={false} name="情绪评分" />
-                  <Line type="monotone" dataKey="volume_score" stroke="#dc2626" dot={false} name="成交量评分" />
-                </LineChart>
-              </ResponsiveContainer>
+
+              <div
+                className="chart-container"
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+              >
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart data={filteredData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" minTickGap={32} />
+                    <YAxis yAxisId="left" domain={['auto', 'auto']} />
+                    <YAxis yAxisId="right" orientation="right" domain={[0, 1]} />
+                    <Tooltip />
+                    <Legend />
+                    {lineVisibility.equity && (
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#2563eb"
+                        dot={false}
+                        strokeWidth={2}
+                        name="权益价值"
+                        isAnimationActive={false}
+                      />
+                    )}
+                    {lineVisibility.totalScore && (
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="total_score"
+                        stroke="#0f766e"
+                        dot={false}
+                        strokeWidth={2}
+                        name="总评分"
+                        isAnimationActive={false}
+                      />
+                    )}
+                    {lineVisibility.trendScore && (
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="trend_score"
+                        stroke="#f59e0b"
+                        dot={false}
+                        name="趋势评分"
+                        isAnimationActive={false}
+                      />
+                    )}
+                    {lineVisibility.sentimentScore && (
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="sentiment_score"
+                        stroke="#7c3aed"
+                        dot={false}
+                        name="情绪评分"
+                        isAnimationActive={false}
+                      />
+                    )}
+                    {lineVisibility.volumeScore && (
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="volume_score"
+                        stroke="#dc2626"
+                        dot={false}
+                        name="成交量评分"
+                        isAnimationActive={false}
+                      />
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="chart-hint">提示：拖动图表左右移动查看附近时间段的数据</p>
             </section>
 
             <section className="panel">
