@@ -13,7 +13,9 @@ def _rolling_percentile(series: pd.Series, lookback_years: int) -> pd.Series:
             continue
         start = max(0, i - window + 1)
         window_data = series.iloc[start:i + 1]
-        result.iloc[i] = (window_data < series.iloc[i]).sum() / len(window_data)
+        less = (window_data < series.iloc[i]).sum()
+        equal = (window_data == series.iloc[i]).sum()
+        result.iloc[i] = (less + 0.5 * equal) / len(window_data)
     return result.fillna(0.5).clip(0.0, 1.0)
 
 
