@@ -38,9 +38,9 @@ run_backtest.py:
 |------|------|------|--------|-----------|
 | A 趋势 | 50% | MA20 + MA60 多状态判断 | 上证指数日线 | 5 档离散: 0 / 0.25 / 0.5 / 0.75 / 1.0 |
 | B 情绪 | 30% | ① 上证日内强度 ② 短期涨跌惯性 | 上证指数日线 (OHLC 派生, 同 A 数据源) | 滚动 3 年分位 → 0~1, 等权合成 |
-
-**数据源独立性说明**: A (趋势) 和 B (情绪) 共享同一份上证 OHLC 数据。B 的"日内强度"和"短期惯性"本质上是 A 趋势结构的短期/日内价格行为代理，并非独立的跨数据源情绪信号（如涨跌家数、期权 PCR、北向资金等 breadth 型指标）。这意味着 B 对 A 的信息增量有限——主要捕捉短期动能相对中期趋势的偏离。当前权重分配 (A 50% + B 30% = 80% 依赖同一数据源) 偏乐观; 后续接入独立情绪数据源后应重新校准权重。实现验证阶段需关注 A/B 子分之间的相关性，如相关度过高 (>0.7) 应降低情绪权重或合并维度。
 | C 量能 | 20% | 沪深两市成交额合计 | 上证+深证日线 amount 求和 | 滚动 3 年分位 → 梯形映射 0~1 |
+
+> **数据源独立性说明**: A (趋势) 和 B (情绪) 共享同一份上证 OHLC 数据。B 的"日内强度"和"短期惯性"本质上是 A 趋势结构的短期/日内价格行为代理，并非独立的跨数据源情绪信号（如涨跌家数、期权 PCR、北向资金等 breadth 型指标）。B 对 A 的信息增量主要来自短期动能相对中期趋势的偏离。当前 80% 权重 (A+B) 来自同一数据源，维度冗余度偏高。后续接入独立情绪数据源后应重新校准权重。
 
 所有数据最终都由 `stock_zh_index_daily_em` 覆盖: 上证 `sh000001` (趋势+情绪) + 深证 `sz399001` (量能补充)。
 
@@ -81,9 +81,7 @@ MA60 方向判定: `MA60(today)` vs `MA60(5 日前)`, 涨幅 > 0.3% 为"向上",
 
 可配置参数: `sentiment_lookback_years=3`, `sentiment_short_term_window=20`
 
-*注 1: AkShare 截至 2026-05-30 未提供"全A涨跌家数日频历史"单一接口（`stock_board_change_em()` 为实时快照，不支持回测）。选择指数 OHLC 派生的两个代理指标，数据源单一稳定，能覆盖"日内多空力度"和"短期情绪惯性"两个维度。后续若 AkShare 新增历史涨跌家数接口，可替换为更精准的指标。*
-
-*注 2 (数据源独立性): B 与 A 共享同一份上证 OHLC 数据，B 本质上是 A 的短期/日内价格行为代理, 不是独立的 breadth 型市场情绪信号。A+B 合计 80% 权重来自同一数据源, 维度冗余度偏高。实现后需验证 A/B 子分相关性: 若 Pearson r > 0.7, 应降低 B 权重或考虑合并为单一维度。*
+*注: AkShare 截至 2026-05-30 未提供"全A涨跌家数日频历史"单一接口（`stock_board_change_em()` 为实时快照，不支持回测）。选择指数 OHLC 派生的两个代理指标，数据源单一稳定，能覆盖"日内多空力度"和"短期情绪惯性"两个维度。后续若 AkShare 新增历史涨跌家数接口，可替换为更精准的指标。*
 
 ### C. 量能评分 (20%)
 
@@ -108,7 +106,7 @@ MA60 方向判定: `MA60(today)` vs `MA60(5 日前)`, 涨幅 > 0.3% 为"向上",
 
 - `market_score_dict` 的 key 格式固定为 `YYYYMMDD` 字符串（与 `data_loader` 中 `resolve_date_range` 返回格式一致）
 - Backtrader 侧日期对齐: `self.datas[0].datetime.date(0).strftime('%Y%m%d')`
-- 缓存文件 `data/market_score_{YYYYMMDD}_{YYYYMMDD}.csv` 中的 date 列也存储为 `YYYYMMDD` 字符串
+- 缓存文件 `data/market_score_{start}_{end}_{hash}.csv` 中的 date 列也存储为 `YYYYMMDD` 字符串（hash 规则见缓存段）
 
 ### 缺失值策略
 
@@ -169,22 +167,69 @@ def next(self):
 
 ## 数据与缓存
 
+### 配置对象
+
+所有可配置项集中在 `MarketConfig` 中，作为 `get_market_score` 的单一入口。
+
+```python
+# market_analyzer.py
+from dataclasses import dataclass, field
+
+@dataclass
+class MarketConfig:
+    # 趋势
+    trend_weight: float = 0.50
+    trend_ma_fast: int = 20
+    trend_ma_slow: int = 60
+    trend_direction_lookback: int = 5
+    trend_flat_threshold: float = 0.003
+
+    # 情绪
+    sentiment_weight: float = 0.30
+    sentiment_lookback_years: int = 3
+    sentiment_short_term_window: int = 20
+
+    # 量能
+    volume_weight: float = 0.20
+    volume_lookback_years: int = 3
+    volume_trapezoid_low: float = 0.20    # <20% 分位 → 地量
+    volume_trapezoid_rise: float = 0.40   # 20-40% 线性上升
+    volume_trapezoid_peak: float = 0.80   # 40-80% 满分
+    volume_trapezoid_fall: float = 0.90   # 80-90% 线性下降
+    volume_trapezoid_low_score: float = 0.2
+    volume_trapezoid_high_score: float = 0.2
+
+    def hash(self) -> str:
+        """SHA256 前 8 位, 用于缓存文件名."""
+        ...
+```
+
 ### 接口契约
 
 ```python
 # market_analyzer.py
 
-def get_market_score(start: str, end: str, lookback_years: int = 3) -> pd.DataFrame:
+def get_market_score(
+    start: str,
+    end: str,
+    config: MarketConfig = None,
+) -> pd.DataFrame:
     """
     获取市场评分 DataFrame。
 
-    实际拉取区间为 start - lookback_years 到 end，以保证分位计算有足够历史窗口；
-    计算完成后裁剪输出 start~end。
+    实际拉取区间为 start - sentiment_lookback_years (取 max(趋势/情绪/量能所需的回看年数))
+    到 end，以保证分位计算有足够历史窗口；计算完成后裁剪输出 start~end。
+
+    读取缓存时：
+      1. 按 (start, end, config.hash()) 匹配缓存文件
+      2. 命中后读取文件内 JSON metadata 行，逐字段校验与当前 config 一致
+      3. 不一致 → WARNING 日志 + 重新计算
+      4. 未命中或文件损坏 → 重新计算
 
     Args:
-        start: 回测起始日期, YYYYMMDD
-        end:   回测结束日期, YYYYMMDD
-        lookback_years: 分位计算所需回看年数, 默认 3
+        start:  回测起始日期, YYYYMMDD
+        end:    回测结束日期, YYYYMMDD
+        config: 评分参数配置, None 时使用 MarketConfig() 默认值
 
     Returns:
         含 date | trend_score | sentiment_score | volume_score | total_score 五列
@@ -257,6 +302,14 @@ data/
 | **胜率** | 有过滤 vs 无过滤 | 期望提升 (过滤掉逆势假信号) |
 | **持仓暴露 (日均仓位%)** | 有过滤 vs 无过滤 | 应与评分正相关 |
 | **盈亏比** | 有过滤 vs 无过滤 | 期望提升 |
+
+### 维度独立性检查
+
+A (趋势) 和 B (情绪) 共享同一份上证 OHLC 数据，B 本质上是价格行为代理而非独立 breadth 信号。实现后 **必须** 验证:
+
+- 计算 A/B 子分在整个回测区间上的 Pearson 相关系数
+- 若 r > 0.7: B 对 A 的增量信息不足，应降低 B 权重 (如 0.30 → 0.15) 或考虑合并 AB 为单一维度
+- 此项检查应作为每次调参后的标准流程
 
 ### 分段验证
 
