@@ -14,11 +14,12 @@ from backtest.data_loader import load_market_data, resolve_date_range
 from market.market_analyzer import MarketConfig, get_market_score
 
 
-def generate_synthetic_data(days=800, start_price=12.0, seed=42):
-    """生成模拟日线数据（牛市+震荡+熊市）"""
+def generate_synthetic_data(start='2020-01-01', end='2023-01-01', start_price=12.0, seed=42):
+    """生成模拟日线数据（牛市+震荡+熊市），日期范围对齐请求区间"""
     import numpy as np
     np.random.seed(seed)
-    dates = pd.date_range('2020-01-01', periods=days, freq='B')
+    dates = pd.bdate_range(start=start, end=end)
+    days = len(dates)
     prices = [start_price]
     for i in range(days - 1):
         if i < 200:   # 牛市
@@ -75,7 +76,7 @@ def run(symbol='000001', start=None, end=None, cash=100000, use_market_filter=Tr
         df = load_market_data(symbol, start, end)
     except Exception as e:
         print(f'数据获取失败({e})，使用模拟数据演示回测')
-        df = generate_synthetic_data()
+        df = generate_synthetic_data(start=start, end=end)
         df['date'] = pd.to_datetime(df['date'])
 
     data = bt.feeds.PandasData(dataname=df, datetime=0)

@@ -40,7 +40,7 @@ class SwingStrategy(bt.Strategy):
                 size = int(cash_for_trade * score / self.data.close[0])
                 if size > 0:
                     self.buy(size=size)
-                self.signal = 1
+                    self.signal = 1
 
         # 卖出条件：MA10下穿MA20 或 跌破布林下轨
         elif (self.ma_fast[0] < self.ma_slow[0] or
