@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Play, RefreshCcw } from 'lucide-react';
+import { Activity, Play, RefreshCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import {
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -12,6 +13,7 @@ import {
 import { createJob, createMarketFilterComparison, getJob, getResult, listJobs } from './api';
 import type { BacktestResult, Job } from './types';
 import { StockSelect } from './StockSelect';
+import { STOCKS } from './stocks';
 
 const defaultForm = {
   symbol: '000001',
@@ -26,6 +28,11 @@ const defaultForm = {
 
 function formatPct(value: number) {
   return `${value.toFixed(2)}%`;
+}
+
+function getStockName(code: string): string {
+  const stock = STOCKS.find(s => s.code === code);
+  return stock ? stock.name : code;
 }
 
 const statusLabels: Record<string, string> = {
@@ -48,6 +55,8 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false);
   const [comparisonJob, setComparisonJob] = useState<Job | null>(null);
   const [comparisonResult, setComparisonResult] = useState<BacktestResult | null>(null);
+  const [equityZoom, setEquityZoom] = useState({ start: 0, end: 100 });
+  const [marketZoom, setMarketZoom] = useState({ start: 0, end: 100 });
 
   async function refreshJobs() {
     const rows = await listJobs();
@@ -120,6 +129,22 @@ export default function App() {
       ['评分均值', result.market_score_summary.mean?.toFixed(2) ?? 'N/A'],
     ];
   }, [result]);
+
+  const filteredEquityData = useMemo(() => {
+    if (!result) return [];
+    const data = result.equity_curve;
+    const start = Math.floor((data.length * equityZoom.start) / 100);
+    const end = Math.ceil((data.length * equityZoom.end) / 100);
+    return data.slice(start, end);
+  }, [result, equityZoom]);
+
+  const filteredMarketData = useMemo(() => {
+    if (!result) return [];
+    const data = result.market_scores;
+    const start = Math.floor((data.length * marketZoom.start) / 100);
+    const end = Math.ceil((data.length * marketZoom.end) / 100);
+    return data.slice(start, end);
+  }, [result, marketZoom]);
 
   async function submit(force = false) {
     setSubmitting(true);
@@ -313,7 +338,7 @@ export default function App() {
         {selectedJob && (
           <div className="result-header">
             <div>
-              <h2>{selectedJob.symbol} 回测</h2>
+              <h2>{selectedJob.symbol} {getStockName(selectedJob.symbol)} 回测</h2>
               <p>{selectedJob.start_date} 至 {selectedJob.end_date} · {selectedJob.cache_hit ? '缓存命中' : '新任务'}</p>
             </div>
             <StatusBadge status={selectedJob.status} />
@@ -350,30 +375,82 @@ export default function App() {
             )}
 
             <section className="panel">
-              <h3>权益曲线</h3>
+              <div className="chart-header">
+                <h3>权益曲线</h3>
+                <div className="zoom-controls">
+                  <button
+                    className="zoom-btn"
+                    onClick={() => setEquityZoom({ start: Math.max(0, equityZoom.start - 10), end: Math.min(100, equityZoom.end + 10) })}
+                    title="缩小（显示更多数据）"
+                  >
+                    <ZoomOut size={16} /> 缩小
+                  </button>
+                  <button
+                    className="zoom-btn"
+                    onClick={() => setEquityZoom({ start: Math.min(50, equityZoom.start + 10), end: Math.max(50, equityZoom.end - 10) })}
+                    title="放大（显示更少数据）"
+                  >
+                    <ZoomIn size={16} /> 放大
+                  </button>
+                  <button
+                    className="zoom-btn"
+                    onClick={() => setEquityZoom({ start: 0, end: 100 })}
+                    title="重置"
+                  >
+                    重置
+                  </button>
+                </div>
+              </div>
               <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={result.equity_curve}>
+                <LineChart data={filteredEquityData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" minTickGap={32} />
                   <YAxis domain={['auto', 'auto']} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="value" stroke="#2563eb" dot={false} strokeWidth={2} />
+                  <Legend />
+                  <Line type="monotone" dataKey="value" stroke="#2563eb" dot={false} strokeWidth={2} name="权益价值" />
                 </LineChart>
               </ResponsiveContainer>
             </section>
 
             <section className="panel">
-              <h3>市场评分</h3>
+              <div className="chart-header">
+                <h3>市场评分</h3>
+                <div className="zoom-controls">
+                  <button
+                    className="zoom-btn"
+                    onClick={() => setMarketZoom({ start: Math.max(0, marketZoom.start - 10), end: Math.min(100, marketZoom.end + 10) })}
+                    title="缩小（显示更多数据）"
+                  >
+                    <ZoomOut size={16} /> 缩小
+                  </button>
+                  <button
+                    className="zoom-btn"
+                    onClick={() => setMarketZoom({ start: Math.min(50, marketZoom.start + 10), end: Math.max(50, marketZoom.end - 10) })}
+                    title="放大（显示更少数据）"
+                  >
+                    <ZoomIn size={16} /> 放大
+                  </button>
+                  <button
+                    className="zoom-btn"
+                    onClick={() => setMarketZoom({ start: 0, end: 100 })}
+                    title="重置"
+                  >
+                    重置
+                  </button>
+                </div>
+              </div>
               <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={result.market_scores}>
+                <LineChart data={filteredMarketData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" minTickGap={32} />
                   <YAxis domain={[0, 1]} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="total_score" stroke="#0f766e" dot={false} strokeWidth={2} />
-                  <Line type="monotone" dataKey="trend_score" stroke="#f59e0b" dot={false} />
-                  <Line type="monotone" dataKey="sentiment_score" stroke="#7c3aed" dot={false} />
-                  <Line type="monotone" dataKey="volume_score" stroke="#dc2626" dot={false} />
+                  <Legend />
+                  <Line type="monotone" dataKey="total_score" stroke="#0f766e" dot={false} strokeWidth={2} name="总评分" />
+                  <Line type="monotone" dataKey="trend_score" stroke="#f59e0b" dot={false} name="趋势评分" />
+                  <Line type="monotone" dataKey="sentiment_score" stroke="#7c3aed" dot={false} name="情绪评分" />
+                  <Line type="monotone" dataKey="volume_score" stroke="#dc2626" dot={false} name="成交量评分" />
                 </LineChart>
               </ResponsiveContainer>
             </section>

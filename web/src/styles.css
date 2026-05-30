@@ -62,8 +62,44 @@ th { color: #627282; font-size: 12px; }
   font-size: 12px;
   margin-bottom: 6px;
 }
-.comparison-grid strong {
-  font-size: 18px;
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.chart-header h3 {
+  margin: 0;
+}
+
+.zoom-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.zoom-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid #cbd5df;
+  border-radius: 4px;
+  background: #fff;
+  color: #405060;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.zoom-btn:hover {
+  background: #f4f6f8;
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.zoom-btn:active {
+  background: #e8edf3;
 }
 @media (max-width: 700px) {
   .comparison-grid {
