@@ -37,7 +37,9 @@ run_backtest.py:
 | 维度 | 权重 | 指标 | 数据源 | 归一化方式 |
 |------|------|------|--------|-----------|
 | A 趋势 | 50% | MA20 + MA60 多状态判断 | 上证指数日线 | 5 档离散: 0 / 0.25 / 0.5 / 0.75 / 1.0 |
-| B 情绪 | 30% | ① 上证日内强度 ② 短期涨跌惯性 | 上证指数日线 (OHLC 派生) | 滚动 3 年分位 → 0~1, 等权合成 |
+| B 情绪 | 30% | ① 上证日内强度 ② 短期涨跌惯性 | 上证指数日线 (OHLC 派生, 同 A 数据源) | 滚动 3 年分位 → 0~1, 等权合成 |
+
+**数据源独立性说明**: A (趋势) 和 B (情绪) 共享同一份上证 OHLC 数据。B 的"日内强度"和"短期惯性"本质上是 A 趋势结构的短期/日内价格行为代理，并非独立的跨数据源情绪信号（如涨跌家数、期权 PCR、北向资金等 breadth 型指标）。这意味着 B 对 A 的信息增量有限——主要捕捉短期动能相对中期趋势的偏离。当前权重分配 (A 50% + B 30% = 80% 依赖同一数据源) 偏乐观; 后续接入独立情绪数据源后应重新校准权重。实现验证阶段需关注 A/B 子分之间的相关性，如相关度过高 (>0.7) 应降低情绪权重或合并维度。
 | C 量能 | 20% | 沪深两市成交额合计 | 上证+深证日线 amount 求和 | 滚动 3 年分位 → 梯形映射 0~1 |
 
 所有数据最终都由 `stock_zh_index_daily_em` 覆盖: 上证 `sh000001` (趋势+情绪) + 深证 `sz399001` (量能补充)。
@@ -79,7 +81,9 @@ MA60 方向判定: `MA60(today)` vs `MA60(5 日前)`, 涨幅 > 0.3% 为"向上",
 
 可配置参数: `sentiment_lookback_years=3`, `sentiment_short_term_window=20`
 
-*注: AkShare 截至 2026-05-30 未提供"全A涨跌家数日频历史"单一接口（`stock_board_change_em()` 为实时快照，不支持回测）。选择指数 OHLC 派生的两个代理指标，数据源单一稳定，能覆盖"日内多空力度"和"短期情绪惯性"两个维度。后续若 AkShare 新增历史涨跌家数接口，可替换为更精准的指标。*
+*注 1: AkShare 截至 2026-05-30 未提供"全A涨跌家数日频历史"单一接口（`stock_board_change_em()` 为实时快照，不支持回测）。选择指数 OHLC 派生的两个代理指标，数据源单一稳定，能覆盖"日内多空力度"和"短期情绪惯性"两个维度。后续若 AkShare 新增历史涨跌家数接口，可替换为更精准的指标。*
+
+*注 2 (数据源独立性): B 与 A 共享同一份上证 OHLC 数据，B 本质上是 A 的短期/日内价格行为代理, 不是独立的 breadth 型市场情绪信号。A+B 合计 80% 权重来自同一数据源, 维度冗余度偏高。实现后需验证 A/B 子分相关性: 若 Pearson r > 0.7, 应降低 B 权重或考虑合并为单一维度。*
 
 ### C. 量能评分 (20%)
 
@@ -233,10 +237,13 @@ def get_market_score(start: str, end: str, lookback_years: int = 3) -> pd.DataFr
 
 ```
 data/
-  └── market_score_{start}_{end}.csv    # date,trend_score,sentiment_score,volume_score,total_score
+  └── market_score_{start}_{end}_{hash}.csv
 ```
 
-date 列为 `YYYYMMDD` 字符串。缓存无自动过期，用户可手动删除重新拉取。
+- `{hash}` = 所有影响评分计算的配置参数的 SHA256 前 8 位。参数包括: `trend_ma_fast`, `trend_ma_slow`, `trend_direction_lookback`, `trend_flat_threshold`, `sentiment_lookback_years`, `sentiment_short_term_window`, `volume_lookback_years`, 三个权重值, 量能梯形映射的 6 个阈值
+- 缓存写入时附带 JSON metadata 行记录完整配置指纹
+- 读取缓存时必须校验 metadata 中的参数与当前参数一致，不一致则重新计算
+- 缓存无自动过期; 用户可手动删除 `data/market_score_*.csv` 强制重新拉取
 
 ## 回测验证
 
