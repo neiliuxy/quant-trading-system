@@ -104,13 +104,15 @@ def _fetch_index_data(symbol: str, start: str, end: str) -> pd.DataFrame:
             if attempt < 3:
                 time.sleep(2)
 
-    # 备用: 腾讯
+    # 备用: 腾讯 (无 volume 列, 补充为 0)
     for attempt in range(1, 3):
         try:
             df = ak.stock_zh_index_daily_tx(
                 symbol=symbol, start_date=start, end_date=end
             )
             df['date'] = pd.to_datetime(df['date'])
+            if 'volume' not in df.columns:
+                df['volume'] = 0
             return df[['date', 'open', 'close', 'high', 'low', 'volume', 'amount']].copy()
         except Exception as e:
             last_err = e
