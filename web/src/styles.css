@@ -144,6 +144,39 @@ th { color: #627282; font-size: 12px; }
   margin: 8px 0 0;
   text-align: center;
 }
+
+.trade-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  padding: 8px;
+  background: #f4f6f8;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.trade-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trade-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid;
+}
+
+.trade-legend-dot.buy {
+  background: #22c55e;
+  border-color: #16a34a;
+}
+
+.trade-legend-dot.sell {
+  background: #ef4444;
+  border-color: #dc2626;
+}
 @media (max-width: 700px) {
   .comparison-grid {
     grid-template-columns: 1fr;

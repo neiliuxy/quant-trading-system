@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
   ComposedChart,
+  ReferenceDot,
 } from 'recharts';
 import { createJob, createMarketFilterComparison, getJob, getResult, listJobs } from './api';
 import type { BacktestResult, Job } from './types';
@@ -152,6 +153,21 @@ export default function App() {
     const equityMap = new Map(result.equity_curve.map(e => [e.date, { ...e, type: 'equity' }]));
     const marketMap = new Map(result.market_scores.map(m => [m.date, { ...m, type: 'market' }]));
 
+    // Add buy/sell markers from trades
+    const tradeMarkers = new Map<string, { buy?: boolean; sell?: boolean }>();
+    result.trades.forEach((trade, index) => {
+      if (!tradeMarkers.has(trade.date)) {
+        tradeMarkers.set(trade.date, {});
+      }
+      const marker = tradeMarkers.get(trade.date)!;
+      // Odd index = buy, even index = sell (or vice versa depending on your logic)
+      if (index % 2 === 0) {
+        marker.buy = true;
+      } else {
+        marker.sell = true;
+      }
+    });
+
     const allDates = new Set([...equityMap.keys(), ...marketMap.keys()]);
     const merged = Array.from(allDates).map(date => ({
       date,
@@ -160,6 +176,7 @@ export default function App() {
       trend_score: marketMap.get(date)?.trend_score,
       sentiment_score: marketMap.get(date)?.sentiment_score,
       volume_score: marketMap.get(date)?.volume_score,
+      ...tradeMarkers.get(date),
     }));
 
     return merged.sort((a, b) => a.date.localeCompare(b.date));
@@ -582,10 +599,48 @@ export default function App() {
                         isAnimationActive={false}
                       />
                     )}
+                    {filteredData.map((point, index) => (
+                      point.buy && (
+                        <ReferenceDot
+                          key={`buy-${index}`}
+                          x={point.date}
+                          y={point.value}
+                          yAxisId="left"
+                          r={5}
+                          fill="#22c55e"
+                          stroke="#16a34a"
+                          strokeWidth={2}
+                        />
+                      )
+                    ))}
+                    {filteredData.map((point, index) => (
+                      point.sell && (
+                        <ReferenceDot
+                          key={`sell-${index}`}
+                          x={point.date}
+                          y={point.value}
+                          yAxisId="left"
+                          r={5}
+                          fill="#ef4444"
+                          stroke="#dc2626"
+                          strokeWidth={2}
+                        />
+                      )
+                    ))}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
               <p className="chart-hint">提示：拖动图表左右移动查看附近时间段的数据</p>
+              <div className="trade-legend">
+                <div className="trade-legend-item">
+                  <div className="trade-legend-dot buy"></div>
+                  <span>买入点</span>
+                </div>
+                <div className="trade-legend-item">
+                  <div className="trade-legend-dot sell"></div>
+                  <span>卖出点</span>
+                </div>
+              </div>
             </section>
 
             <section className="panel">
