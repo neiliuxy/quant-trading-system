@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from difflib import SequenceMatcher
 from typing import Optional
 
@@ -7,9 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from backtest.service import BacktestRequest
+from strategies.registry import list_strategies
 from server.db import DEFAULT_DB_PATH, init_db
 from server.executor import submit_background
-from server.jobs import create_or_reuse_job, get_job, get_job_result, list_jobs
+from server.jobs import create_or_reuse_job, get_job, get_job_result, list_jobs, request_from_job
 from server.models import JobCreateRequest
 
 
@@ -1074,6 +1076,21 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
         stocks = _search_stocks(q)
         return StocksResponse(stocks=stocks)
 
+    @app.get('/api/strategies')
+    def strategies():
+        return [
+            {
+                'id': spec.id,
+                'name': spec.name,
+                'description': spec.description,
+                'params': [
+                    {'name': p.name, 'label': p.label, 'type': p.type, 'default': p.default}
+                    for p in spec.params
+                ],
+            }
+            for spec in list_strategies()
+        ]
+
     @app.post('/api/jobs')
     def create_job(payload: JobCreateRequest):
         req = BacktestRequest(
@@ -1085,6 +1102,8 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
             risk_percent=payload.risk_percent,
             fast_ma=payload.fast_ma,
             slow_ma=payload.slow_ma,
+            strategy_id=payload.strategy_id,
+            strategy_params=payload.strategy_params,
         )
         job = create_or_reuse_job(conn, req, force=payload.force)
         if job['status'] == 'queued' and not job.get('cache_hit'):
@@ -1115,16 +1134,7 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
         job = get_job(conn, job_id)
         if job is None:
             raise HTTPException(status_code=404, detail='job not found')
-        req = BacktestRequest(
-            symbol=job['symbol'],
-            start=job['start_date'],
-            end=job['end_date'],
-            cash=float(job['cash']),
-            use_market_filter=bool(job['use_market_filter']),
-            risk_percent=float(job['risk_percent']),
-            fast_ma=int(job['fast_ma']),
-            slow_ma=int(job['slow_ma']),
-        )
+        req = request_from_job(job)
         new_job = create_or_reuse_job(conn, req, code_version=job['code_version'], force=True)
         submit_background(conn, new_job['id'])
         return _serialize_job(new_job)
@@ -1134,16 +1144,8 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
         job = get_job(conn, job_id)
         if job is None:
             raise HTTPException(status_code=404, detail='job not found')
-        req = BacktestRequest(
-            symbol=job['symbol'],
-            start=job['start_date'],
-            end=job['end_date'],
-            cash=float(job['cash']),
-            use_market_filter=not bool(job['use_market_filter']),
-            risk_percent=float(job['risk_percent']),
-            fast_ma=int(job['fast_ma']),
-            slow_ma=int(job['slow_ma']),
-        )
+        req = request_from_job(job)
+        req = replace(req, use_market_filter=not bool(job['use_market_filter']))
         comparison_job = create_or_reuse_job(conn, req, code_version=job['code_version'])
         if comparison_job['status'] == 'queued' and not comparison_job.get('cache_hit'):
             submit_background(conn, comparison_job['id'])

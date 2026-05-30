@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -39,6 +40,35 @@ def test_missing_result_returns_404(tmp_path):
     client = TestClient(app)
     response = client.get('/api/jobs/999/result')
     assert response.status_code == 404
+
+
+def test_strategies_endpoint_lists_registered_strategies(tmp_path):
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+    response = client.get('/api/strategies')
+    assert response.status_code == 200
+    body = response.json()
+    assert [item['id'] for item in body] == ['swing_ma_boll', 'bollinger_reversal']
+
+
+def test_create_job_persists_strategy_fields(tmp_path, monkeypatch):
+    monkeypatch.setattr('server.api.submit_background', lambda conn, job_id: None)
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+    response = client.post('/api/jobs', json={
+        'symbol': '000001',
+        'start': '20240101',
+        'end': '20240630',
+        'cash': 100000,
+        'use_market_filter': False,
+        'risk_percent': 0.95,
+        'strategy_id': 'bollinger_reversal',
+        'strategy_params': {'boll_period': 20, 'boll_devfactor': 2.0},
+    })
+    assert response.status_code == 200
+    body = response.json()
+    assert body['strategy_id'] == 'bollinger_reversal'
+    assert json.loads(body['strategy_params_json']) == {'boll_period': 20, 'boll_devfactor': 2.0}
 
 
 def test_compare_market_filter_creates_counterpart_job(tmp_path, monkeypatch):

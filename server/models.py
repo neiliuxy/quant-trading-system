@@ -10,6 +10,8 @@ class JobCreateRequest(BaseModel):
     risk_percent: float = 0.95
     fast_ma: int = 10
     slow_ma: int = 20
+    strategy_id: str = 'swing_ma_boll'
+    strategy_params: dict[str, object] = Field(default_factory=dict)
     force: bool = False
 
 
@@ -25,6 +27,8 @@ class JobResponse(BaseModel):
     risk_percent: float
     fast_ma: int
     slow_ma: int
+    strategy_id: str
+    strategy_params_json: str
     code_version: str
     cache_hit: bool
     error: str | None = None
