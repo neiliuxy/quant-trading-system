@@ -1,0 +1,12 @@
+@echo off
+REM Start QuantX Frontend Development Server
+REM Usage: start-frontend.bat
+
+echo.
+echo Starting QuantX Frontend Development Server...
+echo Frontend will be available at http://127.0.0.1:5173
+echo Press Ctrl+C to stop the server
+echo.
+
+cd web
+npm run dev

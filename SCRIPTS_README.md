@@ -4,14 +4,14 @@
 
 ## 📋 脚本列表
 
-### Windows (PowerShell)
+### Windows (Batch)
 
 | 脚本 | 功能 | 用法 |
 |------|------|------|
-| `start-backend.ps1` | 启动后端 API 服务器 | `.\start-backend.ps1` |
-| `start-frontend.ps1` | 启动前端开发服务器 | `.\start-frontend.ps1` |
-| `start-all.ps1` | 同时启动后端和前端 | `.\start-all.ps1` |
-| `stop-servers.ps1` | 停止所有服务器 | `.\stop-servers.ps1` |
+| `start-backend.bat` | 启动后端 API 服务器 | `start-backend.bat` |
+| `start-frontend.bat` | 启动前端开发服务器 | `start-frontend.bat` |
+| `start-all.bat` | 同时启动后端和前端 | `start-all.bat` |
+| `stop-servers.bat` | 停止所有服务器 | `stop-servers.bat` |
 
 ### macOS / Linux (Bash)
 
@@ -27,8 +27,8 @@
 ### 方式 1：一键启动所有服务（推荐）
 
 **Windows:**
-```powershell
-.\start-all.ps1
+```cmd
+start-all.bat
 ```
 
 **macOS/Linux:**
@@ -45,8 +45,8 @@ chmod +x start-all.sh
 ### 方式 2：分别启动后端和前端
 
 **启动后端（Windows）:**
-```powershell
-.\start-backend.ps1
+```cmd
+start-backend.bat
 ```
 
 **启动后端（macOS/Linux）:**
@@ -58,8 +58,8 @@ chmod +x start-backend.sh
 在另一个终端启动前端：
 
 **启动前端（Windows）:**
-```powershell
-.\start-frontend.ps1
+```cmd
+start-frontend.bat
 ```
 
 **启动前端（macOS/Linux）:**
@@ -73,8 +73,8 @@ chmod +x start-frontend.sh
 ### 停止所有服务
 
 **Windows:**
-```powershell
-.\stop-servers.ps1
+```cmd
+stop-servers.bat
 ```
 
 **macOS/Linux:**
@@ -134,7 +134,7 @@ cd ..
 
 ## 🔧 脚本详情
 
-### start-backend.ps1 / start-backend.sh
+### start-backend.bat / start-backend.sh
 
 启动 FastAPI 后端服务器，支持热重载。
 
@@ -145,7 +145,7 @@ cd ..
 - 支持 CORS（跨域请求）
 ```
 
-### start-frontend.ps1 / start-frontend.sh
+### start-frontend.bat / start-frontend.sh
 
 启动 Vite 前端开发服务器。
 
@@ -156,7 +156,7 @@ cd ..
 - 自动浏览器刷新
 ```
 
-### start-all.ps1 / start-all.sh
+### start-all.bat / start-all.sh
 
 同时启动后端和前端，并自动打开浏览器。
 
@@ -164,10 +164,10 @@ cd ..
 特性：
 - 在新窗口/标签页启动两个服务
 - 自动打开浏览器
-- 显示启动信息和 PID
+- 显示启动信息
 ```
 
-### stop-servers.ps1 / stop-servers.sh
+### stop-servers.bat / stop-servers.sh
 
 停止所有运行的服务器。
 
@@ -185,20 +185,12 @@ cd ..
 如果看到 "Address already in use" 错误：
 
 **Windows:**
-```powershell
-# 查看占用端口 8000 的进程
-Get-NetTCPConnection -LocalPort 8000
-
-# 强制停止
-.\stop-servers.ps1
+```cmd
+stop-servers.bat
 ```
 
 **macOS/Linux:**
 ```bash
-# 查看占用端口 8000 的进程
-lsof -i :8000
-
-# 强制停止
 ./stop-servers.sh
 ```
 
@@ -261,8 +253,9 @@ npm run build
 
 ## 💡 提示
 
-- 使用 `start-all.ps1` / `start-all.sh` 是最快的方式
+- 使用 `start-all.bat` / `start-all.sh` 是最快的方式
 - 前端会自动连接到后端 API
 - 修改代码后，两个服务器都会自动重载
 - 使用浏览器开发者工具（F12）调试前端
 - 查看后端终端输出以调试 API 问题
+
