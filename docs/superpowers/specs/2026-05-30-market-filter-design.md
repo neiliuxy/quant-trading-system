@@ -14,7 +14,7 @@ market/                          # 新增目录
   ├── market_analyzer.py         # 对外: get_market_score(start, end) → DataFrame
   └── indicators.py             # 三个纯函数
 
-strategies/swing_ma_boll.py     # 修改: 新增 market_score_df 参数, 买入时仓位 = base × score
+strategies/swing_ma_boll.py     # 修改: 新增 market_score_dict 参数, 买入时仓位 = base × score
 backtest/run_backtest.py        # 修改: 回测前先调 get_market_score(), 缓存 + 传入策略
 backtest/stock_selector.py      # 修改: 批量回测前共享同一份市场评分
 
@@ -108,12 +108,7 @@ MA60 方向判定: `MA60(today)` vs `MA60(5 日前)`, 涨幅 > 0.3% 为"向上",
 
 ### 缺失值策略
 
-Backtrader 交易日与市场评分日期一一对应。若某日不在 `market_score_dict` 中:
-
-1. **滚动前向填充**: 用最近 5 个交易日内最后已知的评分值
-2. **超窗口仍缺失**: score = 0.5（中性保守，不是 0 也不是 1.0）
-
-这保证了短暂的数据间断不会静默关闭过滤器。
+`get_market_score()` 返回前已完成前向填充（见接口契约段）。策略侧只做 `dict.get(date, 0.5)`，自身不负责填充逻辑。
 
 ### 策略参数
 
@@ -124,39 +119,33 @@ params = (
     ('fast_ma', 10),
     ('slow_ma', 20),
     ('risk_percent', 0.95),      # 新增: 基础仓位比例
-    ('market_score_dict', {}),    # 新增: {date_str: score}
+    ('market_score_dict', None),   # 新增: None=无过滤(向后兼容), dict={YYYYMMDD: score}
 )
 ```
 
 ### 买入逻辑
 
+`market_score_dict` 由 `get_market_score()` 预先填充好所有交易日的评分，策略只做简单查表。
+
 ```python
-def _lookup_market_score(self, current_date: str) -> float:
-    """查当日市场评分。key 格式 YYYYMMDD。
-    前向填充最多 5 个交易日，超窗口返回 0.5。
-    """
-    # 先精确匹配
-    if current_date in self.p.market_score_dict:
-        return self.p.market_score_dict[current_date]
+def next(self):
+    # ... 计算买卖条件 ...
+    current_date = self.datas[0].datetime.date(0).strftime('%Y%m%d')
 
-    # 前向填充: 往前找最近 5 个交易日内最后已知的评分
-    # _last_score_date 在 next() 遍历中持续跟踪最近一次命中的日期
-    if self._last_score_date:
-        days_gap = self._count_trading_days(self._last_score_date, current_date)
-        if days_gap <= 5:
-            return self._last_known_score
+    if buy_condition:
+        score_dict = self.p.market_score_dict
+        if score_dict is None:
+            score = 1.0  # 向后兼容: 未传市场评分 = 无过滤
+        else:
+            score = score_dict.get(current_date, 0.5)
 
-    return 0.5  # 兜底中性
+        cash_for_trade = self.broker.getcash() * self.p.risk_percent
+        size = int(cash_for_trade * score / self.data.close[0])
+        if size > 0:
+            self.buy(size=size)
 
-current_date = self.datas[0].datetime.date(0).strftime('%Y%m%d')
-
-if buy_condition:
-    score = self._lookup_market_score(current_date)
-    self._last_known_score = score
-    self._last_score_date = current_date
-    cash_for_trade = self.broker.getcash() * self.p.risk_percent
-    size = int(cash_for_trade * score / self.data.close)
-    self.buy(size=size)
+    elif sell_condition:
+        self.sell()
 ```
 
 ### 卖出逻辑
@@ -167,12 +156,12 @@ if buy_condition:
 
 | 场景 | 行为 |
 |------|------|
-| score = 0.0 | size = 0, 跳过本次买入（但策略仍在运行，等待后续信号） |
+| score = 0.0 | size = 0, `if size > 0` 跳过 `self.buy()`, 策略仍在运行 |
 | score = 1.0 | 全额买入（等于当天市场极度乐观） |
-| market_score_dict = None (参数未传) | _lookup_market_score 短路返回 1.0，等价于无过滤 |
-| market_score_dict = {} (空字典, 显式传入) | 所有查表 miss → 前向填充失败 → 0.5 兜底 |
-| 回测区间内部分日期缺失 | 前向填充 (5 日窗口) → 0.5 兜底 |
-| 首次买入前无任何评分数据 | 查表 miss → 无前向填充 → 0.5 |
+| market_score_dict = None (默认, 未传) | 策略侧 `score = 1.0`, 完全等价于原始策略无过滤 |
+| market_score_dict = {} (空字典, 显式传入) | `get(current_date, 0.5)` → score = 0.5 |
+| dict 中某日缺失 (前向填充已兜底) | `get(current_date, 0.5)` → 0.5 |
+| `self.data.close[0]` 导致 size < 1 | `int()` 截断为 0, `if size > 0` 跳过买入 |
 
 ## 数据与缓存
 
@@ -181,20 +170,35 @@ if buy_condition:
 ```python
 # market_analyzer.py
 
-def get_market_score(start: str, end: str) -> pd.DataFrame:
+def get_market_score(start: str, end: str, lookback_years: int = 3) -> pd.DataFrame:
     """
     获取市场评分 DataFrame。
 
+    实际拉取区间为 start - lookback_years 到 end，以保证分位计算有足够历史窗口；
+    计算完成后裁剪输出 start~end。
+
     Args:
-        start: 起始日期, YYYYMMDD
-        end:   结束日期, YYYYMMDD
+        start: 回测起始日期, YYYYMMDD
+        end:   回测结束日期, YYYYMMDD
+        lookback_years: 分位计算所需回看年数, 默认 3
 
     Returns:
         含 date | trend_score | sentiment_score | volume_score | total_score 五列
         date 列为 YYYYMMDD 格式字符串
-        缺失日期不填充 (由调用方处理日历对齐)
+        已按交易日历前向填充 (max gap = 5 个交易日)
+        无交易日历 gap 超过 5 日（长假后首日等）= 该日 score 为 0.5
     """
 ```
+
+### 前向填充
+
+`get_market_score` 在输出前负责日期间断的前向填充:
+
+1. 将评分 DataFrame 的 date 列与从 start~end 的首个交易日对齐
+2. 对缺失的交易日，用最近 5 个交易日内最后已知的评分前向填充
+3. 超 5 日窗口的缺失（如长假后首个交易日）= 填 0.5
+
+策略只消费已填充好的 dict，不做自行填充。策略内部仅 `dict.get(date, 0.5)` 一行查表。
 
 ### 具体数据源
 
@@ -259,6 +263,18 @@ date 列为 `YYYYMMDD` 字符串。缓存无自动过期，用户可手动删除
 1. 沪深 300 TOP50 成分股批量回测，有/无过滤对比
 2. 不同市场环境分段统计 (牛市/熊市/震荡各区间拆分)
 3. 权重 ±10% 敏感性分析
+
+### 隔离仓位模型变化
+
+`risk_percent=0.95` 会将原始策略从默认 stake 切换为按现金比例买入，仓位模型本身就变了。验证时必须做三重对比，区分两个因素的贡献：
+
+| 对照组 | 配置 | 目的 |
+|--------|------|------|
+| A (基线) | 原始 SwingStrategy, 无 risk_percent | 原始行为 |
+| B (仅仓位) | SwingStrategy + risk_percent=0.95, market_score_dict=None | 隔离仓位模型变化的影响 |
+| C (仓位+过滤) | SwingStrategy + risk_percent=0.95 + 市场评分 | 完整效果 |
+
+评估: B vs A = 仓位模型的净贡献, C vs B = 市场过滤器的净贡献, C vs A = 总效果。
 
 ## 设计依据
 
