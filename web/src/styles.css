@@ -177,6 +177,58 @@ th { color: #627282; font-size: 12px; }
   background: #ef4444;
   border-color: #dc2626;
 }
+
+.chart-date-range {
+  margin-bottom: 12px;
+  padding: 8px;
+  background: #f4f6f8;
+  border-radius: 6px;
+}
+
+.chart-date-range label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #405060;
+  font-size: 13px;
+}
+
+.date-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-range-inputs input {
+  flex: 1;
+  border: 1px solid #cbd5df;
+  border-radius: 4px;
+  padding: 8px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.date-range-inputs span {
+  color: #627282;
+  font-size: 12px;
+}
+
+.reset-date-btn {
+  padding: 6px 12px;
+  border: 1px solid #cbd5df;
+  border-radius: 4px;
+  background: #fff;
+  color: #405060;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.reset-date-btn:hover {
+  background: #e8edf3;
+  border-color: #2563eb;
+  color: #2563eb;
+}
 @media (max-width: 700px) {
   .comparison-grid {
     grid-template-columns: 1fr;

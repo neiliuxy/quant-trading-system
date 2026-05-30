@@ -19,14 +19,35 @@ import { STOCKS } from './stocks';
 
 const defaultForm = {
   symbol: '000001',
-  start: '20230530',
-  end: '20260530',
+  start: getDefaultStartDate(),
+  end: getDefaultEndDate(),
   cash: 100000,
   use_market_filter: true,
   risk_percent: 0.95,
   fast_ma: 10,
   slow_ma: 20,
 };
+
+function getDefaultStartDate(): string {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - 5);
+  return date.toISOString().split('T')[0].replace(/-/g, '');
+}
+
+function getDefaultEndDate(): string {
+  const date = new Date();
+  return date.toISOString().split('T')[0].replace(/-/g, '');
+}
+
+function formatDateForInput(dateStr: string): string {
+  if (!dateStr || dateStr.length !== 8) return '';
+  return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+}
+
+function formatDateFromInput(dateStr: string): string {
+  if (!dateStr) return '';
+  return dateStr.replace(/-/g, '');
+}
 
 function formatPct(value: number) {
   return `${value.toFixed(2)}%`;
@@ -75,6 +96,7 @@ export default function App() {
   });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(0);
+  const [chartDateRange, setChartDateRange] = useState<{ start: string; end: string } | null>(null);
 
   async function refreshJobs() {
     const rows = await listJobs();
@@ -184,10 +206,21 @@ export default function App() {
 
   const filteredData = useMemo(() => {
     if (!mergedData.length) return [];
-    const start = Math.floor((mergedData.length * zoom.start) / 100);
-    const end = Math.ceil((mergedData.length * zoom.end) / 100);
-    return mergedData.slice(start, end);
-  }, [mergedData, zoom]);
+
+    let data = mergedData;
+
+    // Filter by chart date range if set
+    if (chartDateRange?.start && chartDateRange?.end) {
+      data = data.filter(d => d.date >= chartDateRange.start && d.date <= chartDateRange.end);
+    } else {
+      // Otherwise use zoom percentage
+      const start = Math.floor((mergedData.length * zoom.start) / 100);
+      const end = Math.ceil((mergedData.length * zoom.end) / 100);
+      data = mergedData.slice(start, end);
+    }
+
+    return data;
+  }, [mergedData, zoom, chartDateRange]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -385,8 +418,21 @@ export default function App() {
               <option value="601998">601998 - 中信银行</option>
             </select>
           </label>
-          <label>开始日期<input value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></label>
-          <label>结束日期<input value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} /></label>
+          <label>开始日期
+            <input
+              type="date"
+              value={formatDateForInput(form.start)}
+              onChange={(e) => setForm({ ...form, start: formatDateFromInput(e.target.value) })}
+            />
+          </label>
+          <label>结束日期
+            <input
+              type="date"
+              value={formatDateForInput(form.end)}
+              onChange={(e) => setForm({ ...form, end: formatDateFromInput(e.target.value) })}
+              min={formatDateForInput(form.start)}
+            />
+          </label>
           <label>初始资金<input type="number" value={form.cash} onChange={(e) => setForm({ ...form, cash: Number(e.target.value) })} /></label>
           <label className="check-row">
             <input type="checkbox" checked={form.use_market_filter} onChange={(e) => setForm({ ...form, use_market_filter: e.target.checked })} />
@@ -524,6 +570,47 @@ export default function App() {
                   {lineVisibility.volumeScore ? <Eye size={14} /> : <EyeOff size={14} />}
                   成交量评分
                 </button>
+              </div>
+
+              <div className="chart-date-range">
+                <label>显示时间范围
+                  <div className="date-range-inputs">
+                    <input
+                      type="date"
+                      value={chartDateRange?.start ? formatDateForInput(chartDateRange.start) : formatDateForInput(selectedJob?.start_date || '')}
+                      onChange={(e) => {
+                        const start = formatDateFromInput(e.target.value);
+                        setChartDateRange(prev => ({
+                          start,
+                          end: prev?.end || formatDateFromInput(selectedJob?.end_date || ''),
+                        }));
+                      }}
+                      min={formatDateForInput(selectedJob?.start_date || '')}
+                      max={formatDateForInput(selectedJob?.end_date || '')}
+                    />
+                    <span>至</span>
+                    <input
+                      type="date"
+                      value={chartDateRange?.end ? formatDateForInput(chartDateRange.end) : formatDateForInput(selectedJob?.end_date || '')}
+                      onChange={(e) => {
+                        const end = formatDateFromInput(e.target.value);
+                        setChartDateRange(prev => ({
+                          start: prev?.start || formatDateFromInput(selectedJob?.start_date || ''),
+                          end,
+                        }));
+                      }}
+                      min={formatDateForInput(selectedJob?.start_date || '')}
+                      max={formatDateForInput(selectedJob?.end_date || '')}
+                    />
+                    <button
+                      className="reset-date-btn"
+                      onClick={() => setChartDateRange(null)}
+                      title="Reset to full range"
+                    >
+                      重置
+                    </button>
+                  </div>
+                </label>
               </div>
 
               <div
