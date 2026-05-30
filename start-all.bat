@@ -1,8 +1,7 @@
 @echo off
 REM Start Both QuantX Backend and Frontend Servers
 REM Usage: start-all.bat
-
-setlocal enabledelayedexpansion
+REM Opens two separate command windows for backend and frontend
 
 cls
 echo.
@@ -15,6 +14,7 @@ REM Check if npm is installed
 npm --version >nul 2>&1
 if errorlevel 1 (
     echo Error: npm not found. Please install Node.js first.
+    pause
     exit /b 1
 )
 
@@ -22,10 +22,11 @@ REM Check if Python is installed
 python --version >nul 2>&1
 if errorlevel 1 (
     echo Error: Python not found. Please install Python first.
+    pause
     exit /b 1
 )
 
-echo Starting Backend API Server...
+echo Starting Backend API Server in new window...
 echo   - http://127.0.0.1:8000
 echo.
 
@@ -35,12 +36,12 @@ start "QuantX Backend" cmd /k "python -m uvicorn server.main:app --host 127.0.0.
 REM Wait for backend to start
 timeout /t 3 /nobreak
 
-echo Starting Frontend Development Server...
+echo Starting Frontend Development Server in new window...
 echo   - http://127.0.0.1:5173
 echo.
 
 REM Start frontend in a new window
-start "QuantX Frontend" cmd /k "cd web && npm run dev"
+start "QuantX Frontend" cmd /k "cd /d %~dp0web && npm run dev"
 
 echo.
 echo ============================================================
@@ -58,3 +59,4 @@ timeout /t 3 /nobreak
 start http://127.0.0.1:5173
 
 echo Dashboard opened in browser.
+echo.
