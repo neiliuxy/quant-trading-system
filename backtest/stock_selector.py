@@ -11,9 +11,10 @@ import pandas as pd
 import backtrader as bt
 from backtest.data_loader import load_market_data, resolve_date_range
 from strategies.swing_ma_boll import SwingStrategy
+from market.market_analyzer import MarketConfig, get_market_score
 
 
-def run_single_backtest(symbol, start=None, end=None, cash=100000):
+def run_single_backtest(symbol, start=None, end=None, cash=100000, market_score_dict=None):
     """运行单只股票回测，返回关键指标"""
     start, end = resolve_date_range(start, end)
     try:
@@ -24,7 +25,7 @@ def run_single_backtest(symbol, start=None, end=None, cash=100000):
         cerebro = bt.Cerebro()
         data = bt.feeds.PandasData(dataname=df, datetime=0)
         cerebro.adddata(data)
-        cerebro.addstrategy(SwingStrategy)
+        cerebro.addstrategy(SwingStrategy, market_score_dict=market_score_dict)
         cerebro.broker.setcash(cash)
 
         initial = cash
@@ -70,13 +71,27 @@ def main():
         ]
         print(f'使用备用列表 {len(symbols)} 只股票')
 
+    # ── 市场评分 (共享一份) ──
+    market_score_dict = None
+    try:
+        config = MarketConfig()
+        score_df = get_market_score(start, end, config)
+        market_score_dict = dict(zip(
+            score_df['date'].dt.strftime('%Y%m%d'),
+            score_df['total_score'],
+        ))
+        print(f'市场评分范围: {score_df["total_score"].min():.2f} ~ {score_df["total_score"].max():.2f}')
+    except Exception as e:
+        print(f'市场数据获取失败 ({e}), 降级为无过滤模式')
+
     print(f'\n开始批量回测 ({len(symbols)} 只股票)...')
     print('-' * 60)
 
     results = []
     for i, symbol in enumerate(symbols, 1):
         print(f'[{i:2d}/{len(symbols)}] 回测 {symbol}...', end=' ', flush=True)
-        result = run_single_backtest(symbol, start=start, end=end)
+        result = run_single_backtest(symbol, start=start, end=end,
+                                     market_score_dict=market_score_dict)
         if result:
             results.append(result)
             print(f"收益率: {result['total_return']:+.2f}%")
