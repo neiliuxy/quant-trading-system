@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { STOCKS, searchStocks } from './stocks';
+import { ChevronDown, AlertCircle } from 'lucide-react';
+import { getStocks } from './api';
+import { searchStocks } from './stocks';
+
+interface Stock {
+  code: string;
+  name: string;
+}
 
 interface StockSelectProps {
   value: string;
@@ -10,13 +16,53 @@ interface StockSelectProps {
 export function StockSelect({ value, onChange }: StockSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredStocks, setFilteredStocks] = useState(STOCKS);
+  const [filteredStocks, setFilteredStocks] = useState<Stock[]>([]);
+  const [allStocks, setAllStocks] = useState<Stock[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Load stocks on component mount
   useEffect(() => {
-    setFilteredStocks(searchStocks(searchQuery));
-  }, [searchQuery]);
+    const loadStocks = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const stocks = await getStocks();
+        setAllStocks(stocks);
+        setFilteredStocks(stocks);
+      } catch (err) {
+        setError('Failed to load stocks');
+        console.error('Error loading stocks:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStocks();
+  }, []);
+
+  // Update selected stock when value changes
+  useEffect(() => {
+    const stock = allStocks.find(s => s.code === value);
+    setSelectedStock(stock || null);
+  }, [value, allStocks]);
+
+  // Filter stocks based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredStocks(allStocks);
+      return;
+    }
+
+    // Use fuzzy search from stocks module
+    const results = searchStocks(searchQuery);
+    // Filter results to only include stocks from allStocks
+    const stockCodes = new Set(allStocks.map(s => s.code));
+    setFilteredStocks(results.filter(s => stockCodes.has(s.code)));
+  }, [searchQuery, allStocks]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -29,7 +75,6 @@ export function StockSelect({ value, onChange }: StockSelectProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedStock = STOCKS.find(s => s.code === value);
   const displayLabel = selectedStock ? `${selectedStock.code} - ${selectedStock.name}` : '选择股票';
 
   return (
@@ -58,9 +103,20 @@ export function StockSelect({ value, onChange }: StockSelectProps) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             autoFocus
+            disabled={isLoading}
           />
           <div className="stock-select-list">
-            {filteredStocks.length > 0 ? (
+            {error ? (
+              <div className="stock-select-error">
+                <AlertCircle size={16} />
+                <span>{error}</span>
+              </div>
+            ) : isLoading ? (
+              <div className="stock-select-loading">
+                <div className="spinner"></div>
+                <span>加载股票列表中...</span>
+              </div>
+            ) : filteredStocks.length > 0 ? (
               filteredStocks.map((stock) => (
                 <button
                   key={stock.code}

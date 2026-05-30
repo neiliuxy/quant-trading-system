@@ -1,6 +1,14 @@
 import type { BacktestResult, ComparisonResponse, Job } from './types';
 
+export interface Stock {
+  code: string;
+  name: string;
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000';
+
+// In-memory cache for stocks
+const stocksCache = new Map<string, Stock[]>();
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -47,4 +55,14 @@ export function createMarketFilterComparison(jobId: number): Promise<ComparisonR
   return request<ComparisonResponse>(`/api/jobs/${jobId}/compare-market-filter`, {
     method: 'POST',
   });
+}
+
+export async function getStocks(query?: string): Promise<Stock[]> {
+  // Import local stocks directly
+  const { STOCKS, searchStocks } = await import('./stocks');
+
+  if (query) {
+    return searchStocks(query);
+  }
+  return STOCKS;
 }
