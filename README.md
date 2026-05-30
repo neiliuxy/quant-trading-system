@@ -47,6 +47,12 @@ python backtest/run_backtest.py --symbol 600519 --start 20210101 --end 20231231 
 - **情绪 (B)** — 日内强度 + 短期涨跌惯性的滚动分位等权合成
 - **量能 (C)** — 两市成交额的滚动分位梯形映射
 
+## Web 分析台
+
+本地开发见 [docs/web-dashboard.md](docs/web-dashboard.md)。
+
+后端使用 FastAPI，前端使用 React/Vite，历史任务和摘要结果保存在 SQLite 中。
+
 ## 测试
 
 ```bash

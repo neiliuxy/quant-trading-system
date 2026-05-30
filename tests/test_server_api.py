@@ -1,0 +1,66 @@
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from fastapi.testclient import TestClient
+
+from server.api import create_app
+
+
+def test_create_job_and_list_jobs(tmp_path, monkeypatch):
+    monkeypatch.setattr('server.api.submit_background', lambda conn, job_id: None)
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+
+    response = client.post('/api/jobs', json={
+        'symbol': '000001',
+        'start': '20240101',
+        'end': '20240630',
+        'cash': 100000,
+        'use_market_filter': False,
+        'risk_percent': 0.95,
+        'fast_ma': 10,
+        'slow_ma': 20,
+    })
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body['status'] == 'queued'
+    assert body['symbol'] == '000001'
+
+    list_response = client.get('/api/jobs')
+    assert list_response.status_code == 200
+    assert len(list_response.json()) == 1
+
+
+def test_missing_result_returns_404(tmp_path):
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+    response = client.get('/api/jobs/999/result')
+    assert response.status_code == 404
+
+
+def test_compare_market_filter_creates_counterpart_job(tmp_path, monkeypatch):
+    monkeypatch.setattr('server.api.submit_background', lambda conn, job_id: None)
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+
+    response = client.post('/api/jobs', json={
+        'symbol': '000001',
+        'start': '20240101',
+        'end': '20240630',
+        'cash': 100000,
+        'use_market_filter': True,
+        'risk_percent': 0.95,
+        'fast_ma': 10,
+        'slow_ma': 20,
+    })
+    source = response.json()
+
+    compare_response = client.post(f"/api/jobs/{source['id']}/compare-market-filter")
+
+    assert compare_response.status_code == 200
+    body = compare_response.json()
+    assert body['source_job_id'] == source['id']
+    assert body['comparison_job']['use_market_filter'] is False
