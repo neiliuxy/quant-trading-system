@@ -30,11 +30,11 @@ class BacktestRequest:
             spec = get_strategy_spec(self.strategy_id)
         except KeyError:
             raise ValueError(f"Unknown strategy_id: '{self.strategy_id}'")
-        unknown = set(self.strategy_params) - {param.name for param in spec.params}
-        if unknown:
-            raise ValueError(f"Unknown strategy params for {self.strategy_id}: {sorted(unknown)}")
+        # Silently ignore unknown params - each strategy only uses its declared params
         merged_params = dict(spec.defaults)
-        merged_params.update(self.strategy_params)
+        for k, v in self.strategy_params.items():
+            if k in {param.name for param in spec.params}:
+                merged_params[k] = v
         return BacktestRequest(
             symbol=str(self.symbol).zfill(6),
             start=start,
