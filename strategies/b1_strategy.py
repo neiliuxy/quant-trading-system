@@ -1,5 +1,5 @@
 """
-B1 Strategy (少妇战法) - Trend-following with oversold pullback entry
+B1 Strategy - Trend-following with oversold pullback entry
 - Market timing: Shanghai Composite 120-day MA uptrend
 - Entry: 7 conditions (short MA > long MA, low volatility, BBI rising, J oversold, etc.)
 - Exit: Trailing stop (MA crossover) or hard stop (below entry low)
@@ -28,9 +28,9 @@ class B1Strategy(bt.Strategy):
 
     def __init__(self):
         # --- Market timing: Shanghai Composite 120-day MA ---
-        # Note: In live trading, this would use index data feed
-        # For single-stock backtest, we use the stock's own MA as proxy
-        self.index_ma = bt.ind.SMA(self.data.close, period=self.p.index_ma)
+        # Use index data feed (datas[1]) if available, otherwise fall back to stock data (datas[0])
+        index_data = self.datas[1] if len(self.datas) > 1 else self.data
+        self.index_ma = bt.ind.SMA(index_data.close, period=self.p.index_ma)
 
         # --- Individual stock indicators ---
         self.ma_short = bt.ind.SMA(self.data.close, period=self.p.short_ma)
@@ -148,7 +148,7 @@ class B1Strategy(bt.Strategy):
 
 B1_STRATEGY_SPEC = StrategySpec(
     id='b1_strategy',
-    name='B1 Strategy (少妇战法)',
+    name='B1 Strategy',
     description='Trend-following with oversold pullback entry. Market timing via 120-day MA, entry via 7 conditions.',
     strategy_class=B1Strategy,
     params=(
