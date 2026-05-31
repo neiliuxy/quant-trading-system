@@ -107,6 +107,22 @@ function createCandleShape(chartHeight: number) {
   };
 }
 
+function buildTradeMarkerMap(trades: Array<{ date: string }>): Map<string, { buy?: boolean; sell?: boolean }> {
+  const map = new Map<string, { buy?: boolean; sell?: boolean }>();
+  trades.forEach((trade, index) => {
+    if (!map.has(trade.date)) {
+      map.set(trade.date, {});
+    }
+    const marker = map.get(trade.date)!;
+    if (index % 2 === 0) {
+      marker.buy = true;
+    } else {
+      marker.sell = true;
+    }
+  });
+  return map;
+}
+
 interface LineVisibility {
   equity: boolean;
   totalScore: boolean;
@@ -253,19 +269,7 @@ export default function App() {
     const marketMap = new Map(result.market_scores.map(m => [m.date, { ...m, type: 'market' }]));
 
     // Add buy/sell markers from trades
-    const tradeMarkers = new Map<string, { buy?: boolean; sell?: boolean }>();
-    result.trades.forEach((trade, index) => {
-      if (!tradeMarkers.has(trade.date)) {
-        tradeMarkers.set(trade.date, {});
-      }
-      const marker = tradeMarkers.get(trade.date)!;
-      // Odd index = buy, even index = sell (or vice versa depending on your logic)
-      if (index % 2 === 0) {
-        marker.buy = true;
-      } else {
-        marker.sell = true;
-      }
-    });
+    const tradeMarkers = buildTradeMarkerMap(result.trades);
 
     const allDates = new Set([...equityMap.keys(), ...marketMap.keys()]);
     const merged = Array.from(allDates).map(date => ({
@@ -327,18 +331,7 @@ export default function App() {
     const priceRange = maxPrice - minPrice || 1;
 
     // Build trade markers
-    const tradeMap = new Map<string, { buy?: boolean; sell?: boolean }>();
-    result.trades.forEach((trade, index) => {
-      if (!tradeMap.has(trade.date)) {
-        tradeMap.set(trade.date, {});
-      }
-      const marker = tradeMap.get(trade.date)!;
-      if (index % 2 === 0) {
-        marker.buy = true;
-      } else {
-        marker.sell = true;
-      }
-    });
+    const tradeMap = buildTradeMarkerMap(result.trades);
 
     return data.map((d, i) => ({
       ...d,
@@ -885,7 +878,7 @@ export default function App() {
 
                 <div className="chart-container">
                   <ResponsiveContainer width="100%" height={400}>
-                    <ComposedChart data={priceDataWithMA}>
+                    <ComposedChart data={priceDataWithMA} margin={{ top: 0, bottom: 0, left: 0, right: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" minTickGap={32} />
                       <YAxis domain={['auto', 'auto']} />
