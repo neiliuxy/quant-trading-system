@@ -64,6 +64,7 @@ class BacktestResult:
     trades: list[dict[str, Any]] = field(default_factory=list)
     market_scores: list[dict[str, Any]] = field(default_factory=list)
     market_score_summary: dict[str, float] = field(default_factory=dict)
+    price_data: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -101,6 +102,26 @@ class TradeListAnalyzer(bt.Analyzer):
 
     def get_analysis(self):
         return self.trades
+
+
+class PriceDataAnalyzer(bt.Analyzer):
+    """收集每根 bar 的 OHLC 数据，用于前端 K 线图渲染"""
+
+    def start(self):
+        self.rows = []
+
+    def next(self):
+        self.rows.append({
+            'date': self.strategy.datas[0].datetime.date(0).strftime('%Y%m%d'),
+            'open': float(self.datas[0].open[0]),
+            'high': float(self.datas[0].high[0]),
+            'low': float(self.datas[0].low[0]),
+            'close': float(self.datas[0].close[0]),
+            'volume': float(self.datas[0].volume[0]),
+        })
+
+    def get_analysis(self):
+        return self.rows
 
 
 def _market_score_payload(start: str, end: str, enabled: bool) -> tuple[dict[str, float] | None, list[dict[str, Any]], dict[str, float]]:
@@ -153,6 +174,7 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
     cerebro.addanalyzer(TradeListAnalyzer, _name='trades')
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trade_stats')
+    cerebro.addanalyzer(PriceDataAnalyzer, _name='price')
 
     strategies = cerebro.run(runonce=False, stdstats=False)
     strategy = strategies[0]
@@ -180,4 +202,5 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
         trades=trades,
         market_scores=score_rows,
         market_score_summary=score_summary,
+        price_data=strategy.analyzers.price.get_analysis(),
     )
