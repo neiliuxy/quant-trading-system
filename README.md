@@ -7,9 +7,12 @@
 
 ```
 .
-├── strategies/       # 策略实现
+├── strategies/       # 策略实现（多策略注册表架构）
 ├── backtest/         # 回测框架、数据加载、运行入口
 ├── market/           # 市场评分系统（趋势/情绪/量能）
+├── server/           # FastAPI Web 后端
+├── web/              # React + Vite 前端
+├── scripts/          # 辅助脚本
 ├── tests/            # 测试
 ├── data/             # 历史数据缓存
 ├── docs/             # 策略文档
@@ -19,7 +22,7 @@
 ## 快速开始
 
 ```bash
-pip install akshare backtrader pandas numpy
+pip install -r requirements.txt
 python backtest/run_backtest.py
 ```
 

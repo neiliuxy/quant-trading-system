@@ -2,13 +2,16 @@
 
 ## Project Structure & Module Organization
 
-This repository contains a compact Python quant trading prototype. Strategy logic lives in `strategies/`, currently `strategies/swing_ma_boll.py`, which defines the Backtrader strategy and related data helper. Backtest entry points live in `backtest/`, currently `backtest/run_backtest.py`, which loads market data, falls back to synthetic data when network fetches fail, and runs the strategy through Backtrader. The README documents planned directories such as `data/`, `config/`, `docs/`, and `logs/`; create those only when they are needed. Keep generated CSVs under `data/` and logs under `logs/` so `.gitignore` excludes them.
+This repository contains a compact Python quant trading prototype. Strategy logic lives in `strategies/`, with a multi-strategy registry (`strategies/registry.py`) and three strategies: `swing_ma_boll.py` (Swing MA + Bollinger), `bollinger_reversal.py` (Bollinger Reversal), and `b1_strategy.py` (B1). Each strategy defines a `StrategySpec` with typed parameters. Backtest entry points live in `backtest/`, with `run_backtest.py` for CLI and `service.py` for programmatic/Web usage; both load market data and fall back to synthetic data when network fetches fail. An optional market scoring system lives under `market/`. A FastAPI + React/Vite web dashboard lives under `server/` and `web/`. Generated CSVs go in `data/` and logs in `logs/`, both gitignored.
 
 ## Build, Test, and Development Commands
 
-- `pip install akshare backtrader pandas numpy`: install the runtime dependencies used by the backtest and synthetic data generator.
-- `python backtest/run_backtest.py`: run the default backtest for symbol `000001` from `20200101` to `20231231`.
-- `python backtest/run_backtest.py --symbol 600519 --start 20210101 --end 20231231 --cash 200000`: run a parameterized backtest.
+- `pip install -r requirements.txt`: install all runtime dependencies.
+- `python backtest/run_backtest.py`: run the default CLI backtest for symbol `000001` from `20200101` to `20231231`.
+- `python backtest/run_backtest.py --symbol 600519 --start 20210101 --end 20231231 --cash 200000`: run a parameterized CLI backtest.
+- `python -m pytest -q tests/`: run the test suite.
+- `python server/main.py`: start the Web backend (FastAPI, port 8000).
+- `cd web && npm run dev`: start the Web frontend (Vite, port 5173).
 
 There is no build step. Use a virtual environment such as `.venv/` for local work; it is ignored by git.
 
@@ -18,7 +21,7 @@ Use standard Python 3 style with 4-space indentation. Prefer `snake_case` for fu
 
 ## Testing Guidelines
 
-No automated test suite is present yet. For changes, at minimum run `python backtest/run_backtest.py` and verify it completes with either fetched AkShare data or synthetic fallback data. If adding tests, use `pytest`, place tests under `tests/`, and name files `test_*.py`. Focus coverage on signal generation, data normalization, and CLI argument handling.
+A pytest test suite exists under `tests/` with coverage on strategy signal generation, market scoring indicators, backtest service, API endpoints, and integration flows. Run `python -m pytest -q tests/` to verify. When adding tests, use `pytest`, place tests under `tests/`, and name files `test_*.py`. Focus coverage on signal generation, data normalization, CLI argument handling, and API endpoints.
 
 ## Commit & Pull Request Guidelines
 
