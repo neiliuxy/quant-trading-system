@@ -139,3 +139,18 @@ def get_job_result(conn, job_id: int) -> dict[str, Any] | None:
         (job_id,),
     ).fetchone()
     return _row_to_dict(row)
+
+
+def delete_job(conn, job_id: int) -> None:
+    """Delete a job and its associated result (CASCADE via foreign key)."""
+    conn.execute('DELETE FROM jobs WHERE id = ?', (job_id,))
+    conn.commit()
+
+
+def delete_all_jobs(conn) -> int:
+    """Delete all jobs and their results. Returns the count of deleted jobs."""
+    cursor = conn.execute('SELECT COUNT(*) FROM jobs')
+    count = cursor.fetchone()[0]
+    conn.execute('DELETE FROM jobs')
+    conn.commit()
+    return count
