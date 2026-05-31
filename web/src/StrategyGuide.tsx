@@ -78,21 +78,21 @@ export default function StrategyGuide({ onBack }: Props) {
 
             <section className="guide-section guide-chars">
               <h2>交易特征</h2>
-              <div className="chars-grid">
-                <div className="char-card">
-                  <span className="char-label">交易频率</span>
+              <div className="guide-chars-grid">
+                <div className="guide-char-card">
+                  <span className="guide-char-label">交易频率</span>
                   <strong>{selected.characteristics.tradingFrequency}</strong>
                 </div>
-                <div className="char-card">
-                  <span className="char-label">持仓周期</span>
+                <div className="guide-char-card">
+                  <span className="guide-char-label">持仓周期</span>
                   <strong>{selected.characteristics.holdingPeriod}</strong>
                 </div>
-                <div className="char-card">
-                  <span className="char-label">适用股票</span>
+                <div className="guide-char-card">
+                  <span className="guide-char-label">适用股票</span>
                   <strong>{selected.characteristics.applicableStocks}</strong>
                 </div>
-                <div className="char-card">
-                  <span className="char-label">风险等级</span>
+                <div className="guide-char-card">
+                  <span className="guide-char-label">风险等级</span>
                   <strong>{selected.characteristics.riskLevel}</strong>
                 </div>
               </div>
