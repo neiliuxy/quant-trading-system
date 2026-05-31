@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, BookOpen, Play, RefreshCcw, ZoomIn, ZoomOut, Eye, EyeOff, Trash2 } from 'lucide-react';
 import {
+  Bar,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
   LineChart,
+  ReferenceDot,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  ComposedChart,
-  ReferenceDot,
 } from 'recharts';
 import { createJob, createMarketFilterComparison, deleteJob, deleteAllJobs, getJob, getResult, listJobs, listStrategies } from './api';
 import type { BacktestResult, Job, StrategySpec } from './types';
@@ -73,12 +74,52 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status status-${status}`}>{statusLabels[status] || status}</span>;
 }
 
+function createCandleShape(chartHeight: number) {
+  return function CandleShape(props: any) {
+    const { x, width, payload } = props;
+    const { open, close, highY, lowY, openY, closeY } = payload;
+    if (open === undefined) return null;
+
+    const isUp = close >= open;
+    const color = isUp ? '#ef4444' : '#22c55e';
+    const cx = x + width / 2;
+    const h = chartHeight;
+
+    const wickTop = h * highY;
+    const wickBottom = h * lowY;
+    const bodyTop = h * (isUp ? closeY : openY);
+    const bodyBottom = h * (isUp ? openY : closeY);
+
+    return (
+      <g>
+        <line x1={cx} y1={wickTop} x2={cx} y2={wickBottom} stroke={color} strokeWidth={1} />
+        <rect
+          x={cx - 3}
+          y={bodyTop}
+          width={6}
+          height={Math.max(1, bodyBottom - bodyTop)}
+          fill={isUp ? color : 'transparent'}
+          stroke={color}
+          strokeWidth={1}
+        />
+      </g>
+    );
+  };
+}
+
 interface LineVisibility {
   equity: boolean;
   totalScore: boolean;
   trendScore: boolean;
   sentimentScore: boolean;
   volumeScore: boolean;
+}
+
+interface MaVisibility {
+  ma5: boolean;
+  ma10: boolean;
+  ma20: boolean;
+  ma60: boolean;
 }
 
 export default function App() {
@@ -99,6 +140,12 @@ export default function App() {
     trendScore: false,
     sentimentScore: false,
     volumeScore: false,
+  });
+  const [maVisibility, setMaVisibility] = useState<MaVisibility>({
+    ma5: true,
+    ma10: true,
+    ma20: true,
+    ma60: true,
   });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(0);
@@ -252,6 +299,61 @@ export default function App() {
     return data;
   }, [mergedData, zoom, chartDateRange]);
 
+  const priceDataWithMA = useMemo(() => {
+    if (!result?.price_data?.length) return [];
+
+    const data = result.price_data;
+
+    // Calculate simple moving averages
+    function calcMA(period: number): (number | null)[] {
+      return data.map((_, i) => {
+        if (i < period - 1) return null;
+        let sum = 0;
+        for (let j = 0; j < period; j++) sum += data[i - j].close;
+        return parseFloat((sum / period).toFixed(2));
+      });
+    }
+
+    const ma5 = calcMA(5);
+    const ma10 = calcMA(10);
+    const ma20 = calcMA(20);
+    const ma60 = calcMA(60);
+
+    // Price range for candle mapping
+    const lows = data.map(d => d.low);
+    const highs = data.map(d => d.high);
+    const minPrice = Math.min(...lows) * 0.98;
+    const maxPrice = Math.max(...highs) * 1.02;
+    const priceRange = maxPrice - minPrice || 1;
+
+    // Build trade markers
+    const tradeMap = new Map<string, { buy?: boolean; sell?: boolean }>();
+    result.trades.forEach((trade, index) => {
+      if (!tradeMap.has(trade.date)) {
+        tradeMap.set(trade.date, {});
+      }
+      const marker = tradeMap.get(trade.date)!;
+      if (index % 2 === 0) {
+        marker.buy = true;
+      } else {
+        marker.sell = true;
+      }
+    });
+
+    return data.map((d, i) => ({
+      ...d,
+      ma5: ma5[i],
+      ma10: ma10[i],
+      ma20: ma20[i],
+      ma60: ma60[i],
+      highY: (maxPrice - d.high) / priceRange,
+      lowY: (maxPrice - d.low) / priceRange,
+      openY: (maxPrice - d.open) / priceRange,
+      closeY: (maxPrice - d.close) / priceRange,
+      ...tradeMap.get(d.date),
+    }));
+  }, [result]);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
     setDragStart(e.clientX);
@@ -325,6 +427,13 @@ export default function App() {
     setLineVisibility(prev => ({
       ...prev,
       [line]: !prev[line],
+    }));
+  };
+
+  const toggleMaVisibility = (ma: keyof MaVisibility) => {
+    setMaVisibility(prev => ({
+      ...prev,
+      [ma]: !prev[ma],
     }));
   };
 
@@ -736,6 +845,161 @@ export default function App() {
                 </div>
               </div>
             </section>
+
+            {result?.price_data?.length > 0 && (
+              <section className="panel">
+                <div className="chart-header">
+                  <h3>K 线图 & MA 均线</h3>
+                </div>
+
+                <div className="line-toggles">
+                  <button
+                    className={`toggle-btn ${maVisibility.ma5 ? 'active' : ''}`}
+                    onClick={() => toggleMaVisibility('ma5')}
+                  >
+                    {maVisibility.ma5 ? <Eye size={14} /> : <EyeOff size={14} />}
+                    MA5
+                  </button>
+                  <button
+                    className={`toggle-btn ${maVisibility.ma10 ? 'active' : ''}`}
+                    onClick={() => toggleMaVisibility('ma10')}
+                  >
+                    {maVisibility.ma10 ? <Eye size={14} /> : <EyeOff size={14} />}
+                    MA10
+                  </button>
+                  <button
+                    className={`toggle-btn ${maVisibility.ma20 ? 'active' : ''}`}
+                    onClick={() => toggleMaVisibility('ma20')}
+                  >
+                    {maVisibility.ma20 ? <Eye size={14} /> : <EyeOff size={14} />}
+                    MA20
+                  </button>
+                  <button
+                    className={`toggle-btn ${maVisibility.ma60 ? 'active' : ''}`}
+                    onClick={() => toggleMaVisibility('ma60')}
+                  >
+                    {maVisibility.ma60 ? <Eye size={14} /> : <EyeOff size={14} />}
+                    MA60
+                  </button>
+                </div>
+
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={400}>
+                    <ComposedChart data={priceDataWithMA}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" minTickGap={32} />
+                      <YAxis domain={['auto', 'auto']} />
+                      <Tooltip
+                        formatter={(value: any, name: string) => {
+                          if (name === 'MA5') return [value?.toFixed(2), 'MA5'];
+                          if (name === 'MA10') return [value?.toFixed(2), 'MA10'];
+                          if (name === 'MA20') return [value?.toFixed(2), 'MA20'];
+                          if (name === 'MA60') return [value?.toFixed(2), 'MA60'];
+                          return [value, name];
+                        }}
+                        labelFormatter={(label: string) => {
+                          const point = priceDataWithMA.find(d => d.date === label);
+                          if (!point) return label;
+                          return `${label} | O:${point.open?.toFixed(2)} H:${point.high?.toFixed(2)} L:${point.low?.toFixed(2)} C:${point.close?.toFixed(2)}`;
+                        }}
+                      />
+                      <Legend />
+                      <Bar
+                        dataKey="close"
+                        shape={createCandleShape(400)}
+                        isAnimationActive={false}
+                        legendType="none"
+                      />
+                      {maVisibility.ma5 && (
+                        <Line
+                          type="monotone"
+                          dataKey="ma5"
+                          stroke="#ef4444"
+                          dot={false}
+                          strokeWidth={1.5}
+                          name="MA5"
+                          isAnimationActive={false}
+                          connectNulls={false}
+                        />
+                      )}
+                      {maVisibility.ma10 && (
+                        <Line
+                          type="monotone"
+                          dataKey="ma10"
+                          stroke="#f59e0b"
+                          dot={false}
+                          strokeWidth={1.5}
+                          name="MA10"
+                          isAnimationActive={false}
+                          connectNulls={false}
+                        />
+                      )}
+                      {maVisibility.ma20 && (
+                        <Line
+                          type="monotone"
+                          dataKey="ma20"
+                          stroke="#2563eb"
+                          dot={false}
+                          strokeWidth={1.5}
+                          name="MA20"
+                          isAnimationActive={false}
+                          connectNulls={false}
+                        />
+                      )}
+                      {maVisibility.ma60 && (
+                        <Line
+                          type="monotone"
+                          dataKey="ma60"
+                          stroke="#7c3aed"
+                          dot={false}
+                          strokeWidth={1.5}
+                          name="MA60"
+                          isAnimationActive={false}
+                          connectNulls={false}
+                        />
+                      )}
+                      {priceDataWithMA.map((point, index) => (
+                        point.buy && (
+                          <ReferenceDot
+                            key={`kline-buy-${index}`}
+                            x={point.date}
+                            y={point.close}
+                            r={5}
+                            fill="#22c55e"
+                            stroke="#16a34a"
+                            strokeWidth={2}
+                          />
+                        )
+                      ))}
+                      {priceDataWithMA.map((point, index) => (
+                        point.sell && (
+                          <ReferenceDot
+                            key={`kline-sell-${index}`}
+                            x={point.date}
+                            y={point.close}
+                            r={5}
+                            fill="#ef4444"
+                            stroke="#dc2626"
+                            strokeWidth={2}
+                          />
+                        )
+                      ))}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="trade-legend">
+                  <div className="trade-legend-item">
+                    <div className="trade-legend-dot buy"></div>
+                    <span>买入点</span>
+                  </div>
+                  <div className="trade-legend-item">
+                    <div className="trade-legend-dot sell"></div>
+                    <span>卖出点</span>
+                  </div>
+                </div>
+              </section>
+            )}
 
             <section className="panel">
               <h3>交易记录</h3>
