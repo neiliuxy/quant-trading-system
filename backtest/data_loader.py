@@ -114,6 +114,78 @@ def _parse_filename(filepath):
     return None
 
 
+def load_shanghai_composite(start, end):
+    """
+    加载上证综合指数数据。
+
+    Args:
+        start: 开始日期，如 '20200101'
+        end:   结束日期，如 '20231231'
+
+    Returns:
+        pd.DataFrame，含 date/open/high/low/close/volume 列，date 已转为 datetime。
+        加载失败时返回 None。
+    """
+    start, end = resolve_date_range(start, end)
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+
+    # ── 1. 扫描缓存 ──────────────────────────────────────
+    pattern = os.path.join(_CACHE_DIR, 'sh000001_*.csv')
+    candidates = []
+    for filepath in glob.glob(pattern):
+        parsed = _parse_filename(filepath)
+        if parsed is None:
+            continue
+        _, cached_start, cached_end = parsed
+        if cached_start <= start and cached_end >= end:
+            candidates.append((filepath, cached_start, cached_end))
+
+    # 按覆盖范围宽度升序（窄优先）
+    candidates.sort(key=lambda x: int(x[2]) - int(x[1]))
+
+    for filepath, _, _ in candidates:
+        try:
+            df = pd.read_csv(filepath)
+            if set(df.columns) != set(STANDARD_COLUMNS):
+                continue
+            df['date'] = pd.to_datetime(df['date'])
+            mask = (df['date'] >= pd.to_datetime(start)) & (
+                df['date'] <= pd.to_datetime(end))
+            df = df[mask].copy()
+            if not df.empty:
+                print(f'从缓存读取: {os.path.basename(filepath)}')
+                return df
+        except Exception:
+            continue  # 文件损坏，尝试下一个
+
+    # ── 2. 下载并缓存 ────────────────────────────────────
+    print('正在获取上证综合指数历史数据...')
+
+    # 2a. AkShare index_zh_a_hist，重试 3 次
+    last_err = None
+    for attempt in range(1, 4):
+        try:
+            df = ak.index_zh_a_hist(symbol='sh000001', start_date=start, end_date=end)
+            df = df[list(_AKSHARE_COLUMN_MAP.keys())]
+            df.columns = STANDARD_COLUMNS
+            last_err = None
+            break
+        except Exception as e:
+            last_err = e
+            print(f'上证指数数据源请求失败(第{attempt}次): {e}')
+            if attempt < 3:
+                time.sleep(2)
+    else:
+        print(f'无法获取上证综合指数的历史数据，将使用股票数据作为替代')
+        return None
+
+    cache_path = os.path.join(_CACHE_DIR, f'sh000001_上证综合指数_{start}_{end}.csv')
+    df.to_csv(cache_path, index=False)
+
+    df['date'] = pd.to_datetime(df['date'])
+    return df
+
+
 def load_market_data(symbol, start, end):
     """
     加载市场数据，优先使用本地 CSV 缓存。
@@ -207,3 +279,35 @@ def load_market_data(symbol, start, end):
 
     df['date'] = pd.to_datetime(df['date'])
     return df
+
+
+def load_data(symbol, start=None, end=None, include_index=False):
+    """
+    加载股票数据，可选加载上证综合指数。
+
+    Args:
+        symbol:        股票代码，如 '000001'
+        start:         开始日期，如 '20200101'，默认最近 3 年
+        end:           结束日期，如 '20231231'，默认今天
+        include_index: 是否加载上证综合指数，默认 False
+
+    Returns:
+        如果 include_index=False，返回股票 DataFrame。
+        如果 include_index=True，返回 (stock_df, index_df) 元组。
+        指数加载失败时 index_df 为 None。
+
+    Raises:
+        Exception: 股票数据加载失败时抛出。
+    """
+    stock_df = load_market_data(symbol, start, end)
+
+    if not include_index:
+        return stock_df
+
+    try:
+        index_df = load_shanghai_composite(start, end)
+    except Exception as e:
+        print(f'上证指数加载失败，将继续使用股票数据: {e}')
+        index_df = None
+
+    return stock_df, index_df
