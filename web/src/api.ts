@@ -63,6 +63,18 @@ export function createMarketFilterComparison(jobId: number): Promise<ComparisonR
   });
 }
 
+export function deleteJob(jobId: number): Promise<{ status: string; job_id: number }> {
+  return request<{ status: string; job_id: number }>(`/api/jobs/${jobId}`, {
+    method: 'DELETE',
+  });
+}
+
+export function deleteAllJobs(): Promise<{ status: string; deleted_count: number }> {
+  return request<{ status: string; deleted_count: number }>('/api/jobs', {
+    method: 'DELETE',
+  });
+}
+
 export async function getStocks(query?: string): Promise<Stock[]> {
   // Import local stocks directly
   const { STOCKS, searchStocks } = await import('./stocks');
