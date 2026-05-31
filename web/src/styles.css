@@ -361,3 +361,144 @@ th { color: #627282; font-size: 12px; }
     grid-template-columns: 1fr;
   }
 }
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.history-header h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.clear-all-btn {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: #ff8c42;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.clear-all-btn:hover:not(:disabled) {
+  background: #ff7a1f;
+}
+
+.clear-all-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.history-item-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.history-item-wrapper .history-item {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.delete-job-btn {
+  padding: 8px;
+  border: 0;
+  border-radius: 4px;
+  background: #ff6b6b;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.delete-job-btn:hover:not(:disabled) {
+  background: #ff5252;
+}
+
+.delete-job-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-dialog {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 400px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-dialog h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: #17202a;
+}
+
+.modal-dialog p {
+  margin: 0 0 20px;
+  color: #627282;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.modal-cancel,
+.modal-delete {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.modal-cancel {
+  background: #e8edf3;
+  color: #1f2a37;
+}
+
+.modal-cancel:hover:not(:disabled) {
+  background: #d9e1e8;
+}
+
+.modal-delete {
+  background: #ff6b6b;
+  color: #fff;
+}
+
+.modal-delete:hover:not(:disabled) {
+  background: #ff5252;
+}
+
+.modal-cancel:disabled,
+.modal-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

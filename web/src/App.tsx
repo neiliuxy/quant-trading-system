@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Play, RefreshCcw, ZoomIn, ZoomOut, Eye, EyeOff } from 'lucide-react';
+import { Activity, Play, RefreshCcw, ZoomIn, ZoomOut, Eye, EyeOff, Trash2 } from 'lucide-react';
 import {
   CartesianGrid,
   Legend,
@@ -12,7 +12,7 @@ import {
   ComposedChart,
   ReferenceDot,
 } from 'recharts';
-import { createJob, createMarketFilterComparison, getJob, getResult, listJobs, listStrategies } from './api';
+import { createJob, createMarketFilterComparison, deleteJob, deleteAllJobs, getJob, getResult, listJobs, listStrategies } from './api';
 import type { BacktestResult, Job, StrategySpec } from './types';
 import { StockSelect } from './StockSelect';
 import { STOCKS } from './stocks';
@@ -102,6 +102,9 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(0);
   const [chartDateRange, setChartDateRange] = useState<{ start: string; end: string } | null>(null);
+  const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<number | null>(null);
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const selectedStrategy = useMemo(
     () => strategies.find((s) => s.id === selectedStrategyId) ?? strategies[0],
@@ -323,6 +326,38 @@ export default function App() {
     }));
   };
 
+  async function handleDeleteJob(jobId: number) {
+    setIsDeleting(true);
+    try {
+      await deleteJob(jobId);
+      if (selectedJob?.id === jobId) {
+        setSelectedJob(null);
+        setResult(null);
+      }
+      await refreshJobs();
+      setDeleteConfirmJobId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  async function handleDeleteAllJobs() {
+    setIsDeleting(true);
+    try {
+      await deleteAllJobs();
+      setJobs([]);
+      setSelectedJob(null);
+      setResult(null);
+      setDeleteAllConfirm(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -390,12 +425,34 @@ export default function App() {
         </form>
 
         <section className="history">
-          <h2>历史记录</h2>
+          <div className="history-header">
+            <h2>历史记录</h2>
+            {jobs.length > 0 && (
+              <button
+                className="clear-all-btn"
+                onClick={() => setDeleteAllConfirm(true)}
+                disabled={isDeleting || jobs.length === 0}
+                title="Clear all history"
+              >
+                清空历史
+              </button>
+            )}
+          </div>
           {jobs.map((job) => (
-            <button key={job.id} className="history-item" onClick={() => setSelectedJob(job)}>
-              <span>{job.symbol} {job.start_date}-{job.end_date}</span>
-              <StatusBadge status={job.status} />
-            </button>
+            <div key={job.id} className="history-item-wrapper">
+              <button className="history-item" onClick={() => setSelectedJob(job)}>
+                <span>{job.symbol} {job.start_date}-{job.end_date}</span>
+                <StatusBadge status={job.status} />
+              </button>
+              <button
+                className="delete-job-btn"
+                onClick={() => setDeleteConfirmJobId(job.id)}
+                disabled={isDeleting}
+                title="Delete this job"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           ))}
         </section>
       </aside>
@@ -691,6 +748,56 @@ export default function App() {
           <div className="empty-state">提交或选择已完成的任务以查看结果。</div>
         )}
       </section>
+
+      {deleteConfirmJobId !== null && (
+        <div className="modal-overlay" onClick={() => setDeleteConfirmJobId(null)}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>确认删除</h3>
+            <p>确定要删除这个回测任务吗？此操作无法撤销。</p>
+            <div className="modal-buttons">
+              <button
+                className="modal-cancel"
+                onClick={() => setDeleteConfirmJobId(null)}
+                disabled={isDeleting}
+              >
+                取消
+              </button>
+              <button
+                className="modal-delete"
+                onClick={() => handleDeleteJob(deleteConfirmJobId)}
+                disabled={isDeleting}
+              >
+                {isDeleting ? '删除中...' : '删除'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteAllConfirm && (
+        <div className="modal-overlay" onClick={() => setDeleteAllConfirm(false)}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>清空所有历史</h3>
+            <p>确定要删除所有回测任务吗？此操作无法撤销。</p>
+            <div className="modal-buttons">
+              <button
+                className="modal-cancel"
+                onClick={() => setDeleteAllConfirm(false)}
+                disabled={isDeleting}
+              >
+                取消
+              </button>
+              <button
+                className="modal-delete"
+                onClick={handleDeleteAllJobs}
+                disabled={isDeleting}
+              >
+                {isDeleting ? '删除中...' : '删除全部'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
