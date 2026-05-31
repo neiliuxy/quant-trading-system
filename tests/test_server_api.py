@@ -94,3 +94,73 @@ def test_compare_market_filter_creates_counterpart_job(tmp_path, monkeypatch):
     body = compare_response.json()
     assert body['source_job_id'] == source['id']
     assert body['comparison_job']['use_market_filter'] is False
+
+
+def test_delete_job_endpoint(tmp_path, monkeypatch):
+    monkeypatch.setattr('server.api.submit_background', lambda conn, job_id: None)
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+
+    response = client.post('/api/jobs', json={
+        'symbol': '000001',
+        'start': '20240101',
+        'end': '20240630',
+        'cash': 100000,
+        'use_market_filter': False,
+        'risk_percent': 0.95,
+        'fast_ma': 10,
+        'slow_ma': 20,
+    })
+    job_id = response.json()['id']
+
+    delete_response = client.delete(f'/api/jobs/{job_id}')
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {'deleted': True}
+
+    get_response = client.get(f'/api/jobs/{job_id}')
+    assert get_response.status_code == 404
+
+
+def test_delete_job_endpoint_nonexistent_returns_404(tmp_path):
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+
+    delete_response = client.delete('/api/jobs/999')
+    assert delete_response.status_code == 404
+
+
+def test_delete_all_jobs_endpoint(tmp_path, monkeypatch):
+    monkeypatch.setattr('server.api.submit_background', lambda conn, job_id: None)
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+
+    client.post('/api/jobs', json={
+        'symbol': '000001',
+        'start': '20240101',
+        'end': '20240630',
+        'cash': 100000,
+        'use_market_filter': False,
+        'risk_percent': 0.95,
+        'fast_ma': 10,
+        'slow_ma': 20,
+    })
+    client.post('/api/jobs', json={
+        'symbol': '000002',
+        'start': '20240101',
+        'end': '20240630',
+        'cash': 100000,
+        'use_market_filter': False,
+        'risk_percent': 0.95,
+        'fast_ma': 10,
+        'slow_ma': 20,
+    })
+
+    list_response = client.get('/api/jobs')
+    assert len(list_response.json()) == 2
+
+    delete_response = client.delete('/api/jobs')
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {'deleted_count': 2}
+
+    list_response = client.get('/api/jobs')
+    assert len(list_response.json()) == 0

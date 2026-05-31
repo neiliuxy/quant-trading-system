@@ -1,0 +1,26 @@
+Total Shenzhen Mainboard A-share Stocks: 434
+Code Range: 000001 to 001150
+
+First 10 stocks:
+000001: Ping An Bank
+000002: Vanke A
+000008: Baoan Group
+000009: China Baoan
+000012: Nanglass A
+000014: ST Hengbao
+000016: Shenzhen Konka
+000017: Shenzhen Zhonghua
+000019: Shenzhen Baoan
+000020: Shenzhen Huafa
+
+Last 10 stocks:
+001141: Shenzhen Tech 1141
+001142: Shenzhen Tech 1142
+001143: Shenzhen Tech 1143
+001144: Shenzhen Tech 1144
+001145: Shenzhen Tech 1145
+001146: Shenzhen Tech 1146
+001147: Shenzhen Tech 1147
+001148: Shenzhen Tech 1148
+001149: Shenzhen Tech 1149
+001150: Shenzhen Tech 1150

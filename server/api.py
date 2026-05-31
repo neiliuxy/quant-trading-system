@@ -11,7 +11,7 @@ from backtest.service import BacktestRequest
 from strategies.registry import list_strategies
 from server.db import DEFAULT_DB_PATH, init_db
 from server.executor import submit_background
-from server.jobs import create_or_reuse_job, get_job, get_job_result, list_jobs, request_from_job
+from server.jobs import create_or_reuse_job, delete_all_jobs, delete_job, get_job, get_job_result, list_jobs, request_from_job
 from server.models import JobCreateRequest
 
 
@@ -1153,5 +1153,18 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
             'source_job_id': job_id,
             'comparison_job': _serialize_job(comparison_job),
         }
+
+    @app.delete('/api/jobs/{job_id}')
+    def delete_single_job(job_id: int):
+        job = get_job(conn, job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail='job not found')
+        delete_job(conn, job_id)
+        return {'deleted': True}
+
+    @app.delete('/api/jobs')
+    def delete_all_jobs_endpoint():
+        deleted_count = delete_all_jobs(conn)
+        return {'deleted_count': deleted_count}
 
     return app
