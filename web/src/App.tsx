@@ -74,37 +74,40 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status status-${status}`}>{statusLabels[status] || status}</span>;
 }
 
-function createCandleShape(chartHeight: number) {
-  return function CandleShape(props: any) {
-    const { x, width, payload } = props;
-    const { open, close, highY, lowY, openY, closeY } = payload;
-    if (open === undefined) return null;
+function CandleShape(props: any) {
+  const { x, y, width, height, payload } = props;
+  const { open, high, low, close } = payload;
+  if (open === undefined || close === 0) return null;
 
-    const isUp = close >= open;
-    const color = isUp ? '#ef4444' : '#22c55e';
-    const cx = x + width / 2;
-    const h = chartHeight;
+  const isUp = close >= open;
+  const color = isUp ? '#ef4444' : '#22c55e';
+  const cx = x + width / 2;
 
-    const wickTop = h * highY;
-    const wickBottom = h * lowY;
-    const bodyTop = h * (isUp ? closeY : openY);
-    const bodyBottom = h * (isUp ? openY : closeY);
+  // y = top of bar (close price pixel), y + height = baseline (0 price pixel)
+  // pixels per price unit = height / close
+  const pxPerUnit = height / close;
 
-    return (
-      <g>
-        <line x1={cx} y1={wickTop} x2={cx} y2={wickBottom} stroke={color} strokeWidth={1} />
-        <rect
-          x={cx - 3}
-          y={bodyTop}
-          width={6}
-          height={Math.max(1, bodyBottom - bodyTop)}
-          fill={isUp ? color : 'transparent'}
-          stroke={color}
-          strokeWidth={1}
-        />
-      </g>
-    );
-  };
+  const highY = y + height - high * pxPerUnit;
+  const lowY = y + height - low * pxPerUnit;
+  const openY = y + height - open * pxPerUnit;
+  const closeY = y + height - close * pxPerUnit;
+  const bodyTop = Math.min(openY, closeY);
+  const bodyBottom = Math.max(openY, closeY);
+
+  return (
+    <g>
+      <line x1={cx} y1={highY} x2={cx} y2={lowY} stroke={color} strokeWidth={1} />
+      <rect
+        x={x + 1}
+        y={bodyTop}
+        width={width - 2}
+        height={Math.max(1, bodyBottom - bodyTop)}
+        fill={isUp ? color : 'transparent'}
+        stroke={color}
+        strokeWidth={1}
+      />
+    </g>
+  );
 }
 
 function buildTradeMarkerMap(trades: Array<{ date: string }>): Map<string, { buy?: boolean; sell?: boolean }> {
@@ -323,13 +326,6 @@ export default function App() {
     const ma20 = calcMA(20);
     const ma60 = calcMA(60);
 
-    // Price range for candle mapping
-    const lows = data.map(d => d.low);
-    const highs = data.map(d => d.high);
-    const minPrice = Math.min(...lows) * 0.98;
-    const maxPrice = Math.max(...highs) * 1.02;
-    const priceRange = maxPrice - minPrice || 1;
-
     // Build trade markers
     const tradeMap = buildTradeMarkerMap(result.trades);
 
@@ -339,13 +335,22 @@ export default function App() {
       ma10: ma10[i],
       ma20: ma20[i],
       ma60: ma60[i],
-      highY: (maxPrice - d.high) / priceRange,
-      lowY: (maxPrice - d.low) / priceRange,
-      openY: (maxPrice - d.open) / priceRange,
-      closeY: (maxPrice - d.close) / priceRange,
       ...tradeMap.get(d.date),
     }));
   }, [result]);
+
+  const filteredPriceData = useMemo(() => {
+    if (!priceDataWithMA.length) return [];
+
+    let data = priceDataWithMA;
+
+    // Apply same date range filter as equity curve
+    if (chartDateRange?.start && chartDateRange?.end) {
+      data = data.filter(d => d.date >= chartDateRange.start && d.date <= chartDateRange.end);
+    }
+
+    return data;
+  }, [priceDataWithMA, chartDateRange]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -876,12 +881,53 @@ export default function App() {
                   </button>
                 </div>
 
+                <div className="chart-date-range">
+                  <label>显示时间范围
+                    <div className="date-range-inputs">
+                      <input
+                        type="date"
+                        value={chartDateRange?.start ? formatDateForInput(chartDateRange.start) : formatDateForInput(selectedJob?.start_date || '')}
+                        onChange={(e) => {
+                          const start = formatDateFromInput(e.target.value);
+                          setChartDateRange(prev => ({
+                            start,
+                            end: prev?.end || formatDateFromInput(selectedJob?.end_date || ''),
+                          }));
+                        }}
+                        min={formatDateForInput(selectedJob?.start_date || '')}
+                        max={formatDateForInput(selectedJob?.end_date || '')}
+                      />
+                      <span>至</span>
+                      <input
+                        type="date"
+                        value={chartDateRange?.end ? formatDateForInput(chartDateRange.end) : formatDateForInput(selectedJob?.end_date || '')}
+                        onChange={(e) => {
+                          const end = formatDateFromInput(e.target.value);
+                          setChartDateRange(prev => ({
+                            start: prev?.start || formatDateFromInput(selectedJob?.start_date || ''),
+                            end,
+                          }));
+                        }}
+                        min={formatDateForInput(selectedJob?.start_date || '')}
+                        max={formatDateForInput(selectedJob?.end_date || '')}
+                      />
+                      <button
+                        className="reset-date-btn"
+                        onClick={() => setChartDateRange(null)}
+                        title="Reset to full range"
+                      >
+                        重置
+                      </button>
+                    </div>
+                  </label>
+                </div>
+
                 <div className="chart-container">
                   <ResponsiveContainer width="100%" height={400}>
-                    <ComposedChart data={priceDataWithMA} margin={{ top: 0, bottom: 0, left: 0, right: 0 }}>
+                    <ComposedChart data={filteredPriceData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" minTickGap={32} />
-                      <YAxis domain={['auto', 'auto']} />
+                      <YAxis domain={[0, 'auto']} />
                       <Tooltip
                         formatter={(value: any, name: string) => {
                           if (name === 'MA5') return [value?.toFixed(2), 'MA5'];
@@ -891,7 +937,7 @@ export default function App() {
                           return [value, name];
                         }}
                         labelFormatter={(label: string) => {
-                          const point = priceDataWithMA.find(d => d.date === label);
+                          const point = filteredPriceData.find(d => d.date === label);
                           if (!point) return label;
                           return `${label} | O:${point.open?.toFixed(2)} H:${point.high?.toFixed(2)} L:${point.low?.toFixed(2)} C:${point.close?.toFixed(2)}`;
                         }}
@@ -899,7 +945,7 @@ export default function App() {
                       <Legend />
                       <Bar
                         dataKey="close"
-                        shape={createCandleShape(400)}
+                        shape={CandleShape}
                         isAnimationActive={false}
                         legendType="none"
                       />
@@ -951,7 +997,7 @@ export default function App() {
                           connectNulls={false}
                         />
                       )}
-                      {priceDataWithMA.map((point, index) => (
+                      {filteredPriceData.map((point, index) => (
                         point.buy && (
                           <ReferenceDot
                             key={`kline-buy-${index}`}
@@ -964,7 +1010,7 @@ export default function App() {
                           />
                         )
                       ))}
-                      {priceDataWithMA.map((point, index) => (
+                      {filteredPriceData.map((point, index) => (
                         point.sell && (
                           <ReferenceDot
                             key={`kline-sell-${index}`}
