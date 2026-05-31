@@ -700,8 +700,9 @@ export default function App() {
                 <label>显示时间范围
                   <div className="date-range-inputs">
                     <input
-                      type="date"
-                      value={chartDateRange?.start ? formatDateForInput(chartDateRange.start) : formatDateForInput(selectedJob?.start_date || '')}
+                      type="text"
+                      placeholder="YYYYMMDD"
+                      value={chartDateRange?.start || selectedJob?.start_date || ''}
                       onChange={(e) => {
                         const start = formatDateFromInput(e.target.value);
                         setChartDateRange(prev => ({
@@ -709,13 +710,12 @@ export default function App() {
                           end: prev?.end || formatDateFromInput(selectedJob?.end_date || ''),
                         }));
                       }}
-                      min={formatDateForInput(selectedJob?.start_date || '')}
-                      max={formatDateForInput(selectedJob?.end_date || '')}
                     />
                     <span>至</span>
                     <input
-                      type="date"
-                      value={chartDateRange?.end ? formatDateForInput(chartDateRange.end) : formatDateForInput(selectedJob?.end_date || '')}
+                      type="text"
+                      placeholder="YYYYMMDD"
+                      value={chartDateRange?.end || selectedJob?.end_date || ''}
                       onChange={(e) => {
                         const end = formatDateFromInput(e.target.value);
                         setChartDateRange(prev => ({
@@ -723,8 +723,6 @@ export default function App() {
                           end,
                         }));
                       }}
-                      min={formatDateForInput(selectedJob?.start_date || '')}
-                      max={formatDateForInput(selectedJob?.end_date || '')}
                     />
                     <button
                       className="reset-date-btn"
@@ -895,8 +893,9 @@ export default function App() {
                   <label>显示时间范围
                     <div className="date-range-inputs">
                       <input
-                        type="date"
-                        value={chartDateRange?.start ? formatDateForInput(chartDateRange.start) : formatDateForInput(selectedJob?.start_date || '')}
+                        type="text"
+                        placeholder="YYYYMMDD"
+                        value={chartDateRange?.start || selectedJob?.start_date || ''}
                         onChange={(e) => {
                           const start = formatDateFromInput(e.target.value);
                           setChartDateRange(prev => ({
@@ -904,13 +903,12 @@ export default function App() {
                             end: prev?.end || formatDateFromInput(selectedJob?.end_date || ''),
                           }));
                         }}
-                        min={formatDateForInput(selectedJob?.start_date || '')}
-                        max={formatDateForInput(selectedJob?.end_date || '')}
                       />
                       <span>至</span>
                       <input
-                        type="date"
-                        value={chartDateRange?.end ? formatDateForInput(chartDateRange.end) : formatDateForInput(selectedJob?.end_date || '')}
+                        type="text"
+                        placeholder="YYYYMMDD"
+                        value={chartDateRange?.end || selectedJob?.end_date || ''}
                         onChange={(e) => {
                           const end = formatDateFromInput(e.target.value);
                           setChartDateRange(prev => ({
