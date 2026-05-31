@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Play, RefreshCcw, ZoomIn, ZoomOut, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { Activity, BookOpen, Play, RefreshCcw, ZoomIn, ZoomOut, Eye, EyeOff, Trash2 } from 'lucide-react';
 import {
   CartesianGrid,
   Legend,
@@ -17,6 +17,7 @@ import type { BacktestResult, Job, StrategySpec } from './types';
 import { StockSelect } from './StockSelect';
 import { STOCKS } from './stocks';
 import StrategyParamsForm from './StrategyParamsForm';
+import StrategyGuide from './StrategyGuide';
 
 const defaultForm = {
   symbol: '000001',
@@ -105,6 +106,7 @@ export default function App() {
   const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<number | null>(null);
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   const selectedStrategy = useMemo(
     () => strategies.find((s) => s.id === selectedStrategyId) ?? strategies[0],
@@ -358,6 +360,10 @@ export default function App() {
     }
   }
 
+  if (showGuide) {
+    return <StrategyGuide onBack={() => setShowGuide(false)} />;
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -367,6 +373,10 @@ export default function App() {
             <h1>QuantX</h1>
             <p>回测研究工作台</p>
           </div>
+          <button className="nav-guide-btn" onClick={() => setShowGuide(true)} title="策略库">
+            <BookOpen size={16} />
+            策略库
+          </button>
         </div>
 
         <form className="run-form" onSubmit={(event) => { event.preventDefault(); submit(false); }}>
