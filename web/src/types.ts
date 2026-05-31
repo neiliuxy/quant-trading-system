@@ -55,6 +55,14 @@ export interface BacktestResult {
     total_score: number;
   }>;
   market_score_summary: Record<string, number>;
+  price_data: Array<{
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }>;
 }
 
 export interface ComparisonResponse {
