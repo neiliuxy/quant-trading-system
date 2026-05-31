@@ -61,3 +61,29 @@ export interface ComparisonResponse {
   source_job_id: number;
   comparison_job: Job;
 }
+
+export interface StrategyGuideParam {
+  name: string;
+  label: string;
+  meaning: string;
+  recommendedValue: string;
+  adjustmentTips: string;
+}
+
+export interface StrategyGuideData {
+  id: string;
+  name: string;
+  description: string;
+  applicableScenarios: string;
+  principle: {
+    title: string;
+    content: string;
+  };
+  parameters: StrategyGuideParam[];
+  characteristics: {
+    tradingFrequency: string;
+    holdingPeriod: string;
+    applicableStocks: string;
+    riskLevel: string;
+  };
+}
