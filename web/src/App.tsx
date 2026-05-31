@@ -558,24 +558,7 @@ export default function App() {
           {jobs.map((job) => (
             <div key={job.id} className="history-item-wrapper">
               <button className="history-item" onClick={() => setSelectedJob(job)}>
-                <div className="history-item-info">
-                  <div className="history-item-title">
-                    {job.symbol} {getStockName(job.symbol)}
-                  </div>
-                  <div className="history-item-meta">
-                    {job.start_date}-{job.end_date} · {getStrategyName(job.strategy_id)}
-                  </div>
-                  <div className="history-item-params">
-                    {(() => {
-                      try {
-                        const params = JSON.parse(job.strategy_params_json || '{}');
-                        return Object.entries(params)
-                          .map(([k, v]) => `${k}=${v}`)
-                          .join(' ');
-                      } catch { return null; }
-                    })()}
-                  </div>
-                </div>
+                <span>{job.symbol} {getStockName(job.symbol)} {job.start_date}-{job.end_date}</span>
                 <StatusBadge status={job.status} />
               </button>
               <button
@@ -598,6 +581,16 @@ export default function App() {
             <div>
               <h2>{selectedJob.symbol} {getStockName(selectedJob.symbol)} 回测</h2>
               <p>{selectedJob.start_date} 至 {selectedJob.end_date} · {selectedJob.cache_hit ? '缓存命中' : '新任务'} · {getStrategyName(selectedJob.strategy_id)}</p>
+              <p className="result-params">
+                {(() => {
+                  try {
+                    const params = JSON.parse(selectedJob.strategy_params_json || '{}');
+                    const entries = Object.entries(params);
+                    if (!entries.length) return null;
+                    return entries.map(([k, v]) => `${k}=${v}`).join('  ');
+                  } catch { return null; }
+                })()}
+              </p>
             </div>
             <StatusBadge status={selectedJob.status} />
           </div>

@@ -22,16 +22,13 @@ button, input, select { font: inherit; }
 .secondary { background: #e8edf3; color: #1f2a37; }
 .history { margin-top: 26px; }
 .history h2 { font-size: 15px; margin: 0 0 10px; }
-.history-item { width: 100%; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 10px; margin-bottom: 8px; background: #f4f6f8; text-align: left; }
-.history-item-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.history-item-title { font-size: 13px; font-weight: 600; color: #1f2a37; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.history-item-meta { font-size: 11px; color: #627282; }
-.history-item-params { font-size: 10px; color: #8899aa; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-item { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px; margin-bottom: 8px; background: #f4f6f8; text-align: left; }
 .status { border-radius: 999px; padding: 4px 8px; font-size: 12px; background: #dbe4ee; color: #344256; }
 .status-completed { background: #d1fae5; color: #065f46; }
 .status-failed { background: #fee2e2; color: #991b1b; }
 .status-running, .status-queued { background: #dbeafe; color: #1e40af; }
 .result-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+.result-params { margin: 4px 0 0; color: #8899aa; font-size: 12px; font-family: monospace; }
 .result-header h2 { margin: 0; }
 .kpi-grid { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 12px; margin-bottom: 18px; }
 .kpi, .panel, .empty-state, .error { background: #fff; border: 1px solid #d9e1e8; border-radius: 8px; padding: 16px; }
