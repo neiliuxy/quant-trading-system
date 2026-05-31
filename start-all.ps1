@@ -26,22 +26,26 @@ if (!(Test-Path "$PSScriptRoot\logs")) {
     New-Item -ItemType Directory -Path "$PSScriptRoot\logs" | Out-Null
 }
 
-Write-Host "Starting Backend API Server..." -ForegroundColor Green
+Write-Host "Starting Backend API Server (minimized window)..." -ForegroundColor Green
 Write-Host "  - http://127.0.0.1:8000" -ForegroundColor Cyan
 Write-Host ""
 
-# Start backend in background (no new window)
-$backendProcess = Start-Process python -ArgumentList "-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8000", "--reload" -PassThru -NoNewWindow -RedirectStandardOutput "$PSScriptRoot\logs\backend.log" -RedirectStandardError "$PSScriptRoot\logs\backend-error.log"
+# Start backend in its OWN PowerShell window — completely isolated from this terminal
+$backendProcess = Start-Process powershell `
+    -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot'; python -m uvicorn server.main:app --host 127.0.0.1 --port 8000 --reload" `
+    -PassThru -WindowStyle Minimized
 
 # Wait for backend to start
 Start-Sleep -Seconds 3
 
-Write-Host "Starting Frontend Development Server..." -ForegroundColor Green
+Write-Host "Starting Frontend Development Server (minimized window)..." -ForegroundColor Green
 Write-Host "  - http://127.0.0.1:5173" -ForegroundColor Cyan
 Write-Host ""
 
-# Start frontend using cmd /c to properly handle npm.cmd
-$frontendProcess = Start-Process cmd -ArgumentList "/c", "cd /d `"$PSScriptRoot\web`" && npm run dev" -PassThru -NoNewWindow -RedirectStandardOutput "$PSScriptRoot\logs\frontend.log" -RedirectStandardError "$PSScriptRoot\logs\frontend-error.log"
+# Start frontend in its OWN cmd window — completely isolated from this terminal
+$frontendProcess = Start-Process cmd `
+    -ArgumentList "/k", "title QuantX Frontend && cd /d `"$PSScriptRoot\web`" && npm run dev" `
+    -PassThru -WindowStyle Minimized
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green
@@ -53,11 +57,8 @@ Write-Host ""
 Write-Host "Backend PID:  $($backendProcess.Id)" -ForegroundColor Cyan
 Write-Host "Frontend PID: $($frontendProcess.Id)" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Logs:" -ForegroundColor Cyan
-Write-Host "  Backend:  $PSScriptRoot\logs\backend.log" -ForegroundColor Cyan
-Write-Host "  Frontend: $PSScriptRoot\logs\frontend.log" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "To stop all servers, run: .\stop-servers.ps1" -ForegroundColor Green
+Write-Host "Each server runs in its own minimized window (check taskbar)." -ForegroundColor Cyan
+Write-Host "Close the minimized windows or run .\stop-servers.ps1 to stop." -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""
 
@@ -70,5 +71,3 @@ Start-Process "http://127.0.0.1:5173"
 
 Write-Host "Dashboard opened in browser." -ForegroundColor Cyan
 Write-Host ""
-
-
