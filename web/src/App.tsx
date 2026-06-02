@@ -1162,6 +1162,7 @@ export default function App() {
                       <YAxis domain={['auto', 'auto']} />
                       <Tooltip
                         formatter={(value: any, name: string) => {
+                          if (value == null) return ['—', name];
                           if (typeof value === 'number') return [value.toFixed(2), name];
                           return [value, name];
                         }}
