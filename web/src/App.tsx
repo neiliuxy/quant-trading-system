@@ -19,6 +19,7 @@ import { StockSelect } from './StockSelect';
 import { STOCKS } from './stocks';
 import StrategyParamsForm from './StrategyParamsForm';
 import StrategyGuide from './StrategyGuide';
+import { calcMA, calcBoll } from './indicators';
 
 const defaultForm = {
   symbol: '000001',
@@ -141,6 +142,14 @@ interface MaVisibility {
   ma60: boolean;
 }
 
+interface IndexMaVisibility {
+  ma5: boolean;
+  ma10: boolean;
+  ma20: boolean;
+  ma60: boolean;
+  boll: boolean;
+}
+
 export default function App() {
   const [form, setForm] = useState(defaultForm);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -166,6 +175,16 @@ export default function App() {
     ma20: true,
     ma60: true,
   });
+  const [indexMaVisibility, setIndexMaVisibility] = useState<IndexMaVisibility>({
+    ma5: true,
+    ma10: true,
+    ma20: true,
+    ma60: true,
+    boll: false,
+  });
+  const toggleIndexMa = (key: keyof IndexMaVisibility) => {
+    setIndexMaVisibility((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(0);
   const [chartDateRange, setChartDateRange] = useState<{ start: string; end: string } | null>(null);
@@ -351,6 +370,35 @@ export default function App() {
 
     return data;
   }, [priceDataWithMA, chartDateRange]);
+
+  const indexDataWithMA = useMemo(() => {
+    if (!result?.index_data?.length) return [];
+    const closes = result.index_data.map((d) => d.close);
+    const ma5 = calcMA(closes, 5);
+    const ma10 = calcMA(closes, 10);
+    const ma20 = calcMA(closes, 20);
+    const ma60 = calcMA(closes, 60);
+    const boll = calcBoll(closes, 20, 2.0);
+    return result.index_data.map((d, i) => ({
+      ...d,
+      ma5: ma5[i],
+      ma10: ma10[i],
+      ma20: ma20[i],
+      ma60: ma60[i],
+      boll_upper: boll.upper[i],
+      boll_mid: boll.mid[i],
+      boll_lower: boll.lower[i],
+    }));
+  }, [result]);
+
+  const filteredIndexData = useMemo(() => {
+    if (!indexDataWithMA.length) return [];
+    let data = indexDataWithMA;
+    if (chartDateRange?.start && chartDateRange?.end) {
+      data = data.filter((d) => d.date >= chartDateRange.start && d.date <= chartDateRange.end);
+    }
+    return data;
+  }, [indexDataWithMA, chartDateRange]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -1044,6 +1092,108 @@ export default function App() {
                     <div className="trade-legend-dot sell"></div>
                     <span>卖出点</span>
                   </div>
+                </div>
+              </section>
+            )}
+
+            {result?.index_data && result.index_data.length > 0 && (
+              <section className="panel">
+                <div className="chart-header">
+                  <h3>上证指数 K 线 + MA + BOLL</h3>
+                </div>
+
+                <div className="line-toggles">
+                  {(['ma5', 'ma10', 'ma20', 'ma60', 'boll'] as const).map((key) => (
+                    <button
+                      key={key}
+                      className={`toggle-btn ${indexMaVisibility[key] ? 'active' : ''}`}
+                      onClick={() => toggleIndexMa(key)}
+                    >
+                      {indexMaVisibility[key] ? <Eye size={14} /> : <EyeOff size={14} />}
+                      {key === 'boll' ? 'BOLL' : key.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="chart-date-range">
+                  <label>显示时间范围
+                    <div className="date-range-inputs">
+                      <input
+                        type="text"
+                        placeholder="YYYYMMDD"
+                        value={chartDateRange?.start || selectedJob?.start_date || ''}
+                        onChange={(e) => {
+                          const start = formatDateFromInput(e.target.value);
+                          setChartDateRange((prev) => ({
+                            start,
+                            end: prev?.end || formatDateFromInput(selectedJob?.end_date || ''),
+                          }));
+                        }}
+                      />
+                      <span>至</span>
+                      <input
+                        type="text"
+                        placeholder="YYYYMMDD"
+                        value={chartDateRange?.end || selectedJob?.end_date || ''}
+                        onChange={(e) => {
+                          const end = formatDateFromInput(e.target.value);
+                          setChartDateRange((prev) => ({
+                            start: prev?.start || formatDateFromInput(selectedJob?.start_date || ''),
+                            end,
+                          }));
+                        }}
+                      />
+                      <button
+                        className="reset-date-btn"
+                        onClick={() => setChartDateRange(null)}
+                        title="Reset to full range"
+                      >
+                        重置
+                      </button>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={400}>
+                    <ComposedChart data={filteredIndexData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" minTickGap={32} />
+                      <YAxis domain={['auto', 'auto']} />
+                      <Tooltip
+                        formatter={(value: any, name: string) => {
+                          if (typeof value === 'number') return [value.toFixed(2), name];
+                          return [value, name];
+                        }}
+                        labelFormatter={(label: string) => {
+                          const point = filteredIndexData.find((d) => d.date === label);
+                          if (!point) return label;
+                          return `${label} | O:${point.open.toFixed(2)} H:${point.high.toFixed(2)} L:${point.low.toFixed(2)} C:${point.close.toFixed(2)}`;
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="close" shape={CandleShape} isAnimationActive={false} legendType="none" />
+                      {indexMaVisibility.ma5 && (
+                        <Line type="monotone" dataKey="ma5" stroke="#ef4444" dot={false} strokeWidth={1.5} name="MA5" isAnimationActive={false} connectNulls={false} />
+                      )}
+                      {indexMaVisibility.ma10 && (
+                        <Line type="monotone" dataKey="ma10" stroke="#f59e0b" dot={false} strokeWidth={1.5} name="MA10" isAnimationActive={false} connectNulls={false} />
+                      )}
+                      {indexMaVisibility.ma20 && (
+                        <Line type="monotone" dataKey="ma20" stroke="#2563eb" dot={false} strokeWidth={1.5} name="MA20" isAnimationActive={false} connectNulls={false} />
+                      )}
+                      {indexMaVisibility.ma60 && (
+                        <Line type="monotone" dataKey="ma60" stroke="#7c3aed" dot={false} strokeWidth={1.5} name="MA60" isAnimationActive={false} connectNulls={false} />
+                      )}
+                      {indexMaVisibility.boll && (
+                        <>
+                          <Line type="monotone" dataKey="boll_upper" stroke="#a855f7" dot={false} strokeWidth={1} name="BOLL上轨" isAnimationActive={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="boll_mid" stroke="#eab308" dot={false} strokeWidth={1.2} name="BOLL中轨" isAnimationActive={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="boll_lower" stroke="#a855f7" dot={false} strokeWidth={1} name="BOLL下轨" isAnimationActive={false} connectNulls={false} />
+                        </>
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 </div>
               </section>
             )}
