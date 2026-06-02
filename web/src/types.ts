@@ -63,6 +63,15 @@ export interface BacktestResult {
     close: number;
     volume: number;
   }>;
+  index_data: Array<{
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+    amount: number;
+  }>;
 }
 
 export interface ComparisonResponse {
