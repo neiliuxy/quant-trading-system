@@ -3,11 +3,13 @@ import { Activity, BookOpen, Play, RefreshCcw, ZoomIn, ZoomOut, Eye, EyeOff, Tra
 import {
   Bar,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Legend,
   Line,
   LineChart,
   ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,7 +21,7 @@ import { StockSelect } from './StockSelect';
 import { STOCKS } from './stocks';
 import StrategyParamsForm from './StrategyParamsForm';
 import StrategyGuide from './StrategyGuide';
-import { calcMA, calcBoll } from './indicators';
+import { calcMA, calcBoll, calcMacd, calcKdj } from './indicators';
 
 const defaultForm = {
   symbol: '000001',
@@ -185,6 +187,8 @@ export default function App() {
   const toggleIndexMa = (key: keyof IndexMaVisibility) => {
     setIndexMaVisibility((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+  type IndicatorKey = 'macd' | 'kdj' | 'volume' | 'amount';
+  const [selectedIndicator, setSelectedIndicator] = useState<IndicatorKey>('macd');
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(0);
   const [chartDateRange, setChartDateRange] = useState<{ start: string; end: string } | null>(null);
@@ -399,6 +403,56 @@ export default function App() {
     }
     return data;
   }, [indexDataWithMA, chartDateRange]);
+
+  const indexIndicatorData = useMemo(() => {
+    if (!indexDataWithMA.length) return [];
+    const highs = indexDataWithMA.map((d) => d.high);
+    const lows = indexDataWithMA.map((d) => d.low);
+    const closes = indexDataWithMA.map((d) => d.close);
+
+    if (selectedIndicator === 'macd') {
+      const { dif, dea, macd } = calcMacd(closes);
+      return indexDataWithMA.map((d, i) => ({
+        date: d.date,
+        isUp: d.close >= d.open,
+        dif: dif[i],
+        dea: dea[i],
+        macd: macd[i],
+      }));
+    }
+    if (selectedIndicator === 'kdj') {
+      const { k, d, j } = calcKdj(highs, lows, closes);
+      return indexDataWithMA.map((p, i) => ({
+        date: p.date,
+        k: k[i],
+        d: d[i],
+        j: j[i],
+      }));
+    }
+    if (selectedIndicator === 'volume') {
+      return indexDataWithMA.map((d) => ({
+        date: d.date,
+        isUp: d.close >= d.open,
+        value: d.volume,
+      }));
+    }
+    // amount
+    return indexDataWithMA.map((d) => ({
+      date: d.date,
+      isUp: d.close >= d.open,
+      value: d.amount / 1e8,  // 转亿元
+    }));
+  }, [indexDataWithMA, selectedIndicator]);
+
+  const filteredIndicatorData = useMemo(() => {
+    if (!indexIndicatorData.length) return [];
+    if (chartDateRange?.start && chartDateRange?.end) {
+      return indexIndicatorData.filter(
+        (d) => d.date >= chartDateRange.start && d.date <= chartDateRange.end
+      );
+    }
+    return indexIndicatorData;
+  }, [indexIndicatorData, chartDateRange]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -1097,6 +1151,7 @@ export default function App() {
             )}
 
             {result?.index_data && result.index_data.length > 0 && (
+              <>
               <section className="panel">
                 <div className="chart-header">
                   <h3>上证指数 K 线 + MA + BOLL</h3>
@@ -1197,6 +1252,68 @@ export default function App() {
                   </ResponsiveContainer>
                 </div>
               </section>
+
+              <section className="panel">
+                <div className="chart-header">
+                  <h3>上证指数 技术指标</h3>
+                  <select
+                    value={selectedIndicator}
+                    onChange={(e) => setSelectedIndicator(e.target.value as IndicatorKey)}
+                    style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5df', background: '#fff' }}
+                  >
+                    <option value="macd">MACD</option>
+                    <option value="kdj">KDJ</option>
+                    <option value="volume">交易量</option>
+                    <option value="amount">交易额（亿元）</option>
+                  </select>
+                </div>
+
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <ComposedChart data={filteredIndicatorData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" minTickGap={32} />
+                      <YAxis domain={['auto', 'auto']} />
+                      <Tooltip />
+                      {selectedIndicator === 'macd' && (
+                        <>
+                          <Bar dataKey="macd" isAnimationActive={false} name="MACD">
+                            {filteredIndicatorData.map((entry, i) => (
+                              <Cell key={`m-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
+                            ))}
+                          </Bar>
+                          <Line type="monotone" dataKey="dif" stroke="#facc15" dot={false} strokeWidth={1.4} name="DIF" isAnimationActive={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="dea" stroke="#f97316" dot={false} strokeWidth={1.4} name="DEA" isAnimationActive={false} connectNulls={false} />
+                        </>
+                      )}
+                      {selectedIndicator === 'kdj' && (
+                        <>
+                          <Line type="monotone" dataKey="k" stroke="#f3f4f6" dot={false} strokeWidth={1.4} name="K" isAnimationActive={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="d" stroke="#facc15" dot={false} strokeWidth={1.4} name="D" isAnimationActive={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="j" stroke="#a855f7" dot={false} strokeWidth={1.4} name="J" isAnimationActive={false} connectNulls={false} />
+                          <ReferenceLine y={80} stroke="#9ca3af" strokeDasharray="2 2" />
+                          <ReferenceLine y={20} stroke="#9ca3af" strokeDasharray="2 2" />
+                        </>
+                      )}
+                      {selectedIndicator === 'volume' && (
+                        <Bar dataKey="value" isAnimationActive={false} name="交易量">
+                          {filteredIndicatorData.map((entry, i) => (
+                            <Cell key={`v-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
+                          ))}
+                        </Bar>
+                      )}
+                      {selectedIndicator === 'amount' && (
+                        <Bar dataKey="value" isAnimationActive={false} name="交易额">
+                          {filteredIndicatorData.map((entry, i) => (
+                            <Cell key={`a-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
+                          ))}
+                        </Bar>
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+              </>
             )}
 
             <section className="panel">
