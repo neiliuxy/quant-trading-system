@@ -333,21 +333,11 @@ export default function App() {
     if (!result?.price_data?.length) return [];
 
     const data = result.price_data;
-
-    // Calculate simple moving averages
-    function calcMA(period: number): (number | null)[] {
-      return data.map((_, i) => {
-        if (i < period - 1) return null;
-        let sum = 0;
-        for (let j = 0; j < period; j++) sum += data[i - j].close;
-        return parseFloat((sum / period).toFixed(2));
-      });
-    }
-
-    const ma5 = calcMA(5);
-    const ma10 = calcMA(10);
-    const ma20 = calcMA(20);
-    const ma60 = calcMA(60);
+    const closes = data.map((d) => d.close);
+    const ma5 = calcMA(closes, 5);
+    const ma10 = calcMA(closes, 10);
+    const ma20 = calcMA(closes, 20);
+    const ma60 = calcMA(closes, 60);
 
     // Build trade markers
     const tradeMap = buildTradeMarkerMap(result.trades);
