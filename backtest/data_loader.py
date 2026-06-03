@@ -164,12 +164,18 @@ def load_shanghai_composite(start, end):
     print('正在获取上证综合指数历史数据...')
 
     # 2a. AkShare index_zh_a_hist，重试 3 次
+    # 注意：ak.index_zh_a_hist 默认只返回 6 列（日期/开/收/高/低/成交量），
+    # 没有「成交额」。我们只选实际存在的列，并用 close*volume*100 作为
+    # 成交额的合理近似（单位：元）。
     last_err = None
     for attempt in range(1, 4):
         try:
             df = ak.index_zh_a_hist(symbol='sh000001', start_date=start, end_date=end)
-            df = df[list(_AKSHARE_COLUMN_MAP.keys())]
-            df.columns = INDEX_STANDARD_COLUMNS
+            existing_cols = [c for c in _AKSHARE_COLUMN_MAP.keys() if c in df.columns]
+            df = df[existing_cols]
+            df.columns = [_AKSHARE_COLUMN_MAP[c] for c in existing_cols]
+            if 'amount' not in df.columns:
+                df['amount'] = df['close'] * df['volume'] * 100
             last_err = None
             break
         except Exception as e:
