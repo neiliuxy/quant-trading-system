@@ -87,3 +87,56 @@ def test_market_filter_scores_are_exposed(monkeypatch):
     assert result.market_score_summary['min'] == 0.6
     assert result.market_score_summary['max'] == 0.6
     assert len(result.market_scores) > 20
+
+
+def test_index_data_is_populated_when_loader_returns_df(monkeypatch):
+    """load_shanghai_composite 返回有效 DataFrame 时，result.index_data 应有 OHLCV+amount。"""
+    from backtest.run_backtest import generate_synthetic_data
+    from datetime import datetime
+    import pandas as pd
+
+    stock_df = generate_synthetic_data(start='20240101', end='20240630')
+
+    dates = pd.date_range('20240101', periods=len(stock_df), freq='B')
+    index_df = pd.DataFrame({
+        'date': dates,
+        'open': [3000.0] * len(stock_df),
+        'high': [3050.0] * len(stock_df),
+        'low':  [2980.0] * len(stock_df),
+        'close':[3020.0] * len(stock_df),
+        'volume': [1e9] * len(stock_df),
+        'amount': [3e12] * len(stock_df),
+    })
+
+    monkeypatch.setattr('backtest.service.load_market_data', lambda s, st, e: stock_df.copy())
+    monkeypatch.setattr('backtest.service.load_shanghai_composite', lambda st, e: index_df.copy())
+
+    request = BacktestRequest(
+        symbol='000001', start='20240101', end='20240630',
+        cash=100000.0, use_market_filter=False,
+    )
+    result = run_backtest_service(request)
+
+    assert result.index_data, 'index_data should be populated'
+    assert len(result.index_data) == len(stock_df)
+    first = result.index_data[0]
+    assert set(first.keys()) == {'date', 'open', 'high', 'low', 'close', 'volume', 'amount'}
+    assert first['date'].isdigit() and len(first['date']) == 8
+    assert first['amount'] == 3e12
+
+
+def test_index_data_empty_when_loader_returns_none(monkeypatch):
+    """load_shanghai_composite 返回 None 时，index_data 为空 list，不抛错。"""
+    from backtest.run_backtest import generate_synthetic_data
+    stock_df = generate_synthetic_data(start='20240101', end='20240630')
+    monkeypatch.setattr('backtest.service.load_market_data', lambda s, st, e: stock_df.copy())
+    monkeypatch.setattr('backtest.service.load_shanghai_composite', lambda st, e: None)
+
+    request = BacktestRequest(
+        symbol='000001', start='20240101', end='20240630',
+        cash=100000.0, use_market_filter=False,
+    )
+    result = run_backtest_service(request)
+
+    assert result.index_data == []
+    assert result.final_value > 0  # 回测本身成功

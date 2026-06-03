@@ -6,7 +6,7 @@ from typing import Any
 import backtrader as bt
 import pandas as pd
 
-from backtest.data_loader import load_market_data, resolve_date_range
+from backtest.data_loader import load_market_data, load_shanghai_composite, resolve_date_range
 from market.market_analyzer import MarketConfig, get_market_score
 from strategies.registry import get_strategy_spec
 
@@ -65,6 +65,7 @@ class BacktestResult:
     market_scores: list[dict[str, Any]] = field(default_factory=list)
     market_score_summary: dict[str, float] = field(default_factory=dict)
     price_data: list[dict[str, Any]] = field(default_factory=list)
+    index_data: list[dict[str, Any]] = field(default_factory=list)  # 上证指数 OHLCV+amount
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -160,6 +161,21 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
     df = load_market_data(req.symbol, req.start, req.end)
     data = bt.feeds.PandasData(dataname=df, datetime=0)
 
+    # 加载上证指数数据（不经过 Cerebro，独立缓存）
+    index_data: list[dict[str, Any]] = []
+    index_df = load_shanghai_composite(req.start, req.end)
+    if index_df is not None and not index_df.empty:
+        for _, row in index_df.iterrows():
+            index_data.append({
+                'date': row['date'].strftime('%Y%m%d'),
+                'open': float(row['open']),
+                'high': float(row['high']),
+                'low': float(row['low']),
+                'close': float(row['close']),
+                'volume': float(row['volume']),
+                'amount': float(row['amount']),
+            })
+
     cerebro = bt.Cerebro()
     cerebro.adddata(data)
     strategy_kwargs = dict(req.strategy_params)
@@ -203,4 +219,5 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
         market_scores=score_rows,
         market_score_summary=score_summary,
         price_data=strategy.analyzers.price.get_analysis(),
+        index_data=index_data,
     )

@@ -16,6 +16,7 @@ _CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), 'data')
 
 STANDARD_COLUMNS = ['date', 'open', 'high', 'low', 'close', 'volume']
+INDEX_STANDARD_COLUMNS = ['date', 'open', 'high', 'low', 'close', 'volume', 'amount']
 
 # AkShare 中文列名 → 标准英文列名
 _AKSHARE_COLUMN_MAP = {
@@ -25,6 +26,7 @@ _AKSHARE_COLUMN_MAP = {
     '最低': 'low',
     '收盘': 'close',
     '成交量': 'volume',
+    '成交额': 'amount',
 }
 
 
@@ -146,7 +148,7 @@ def load_shanghai_composite(start, end):
     for filepath, _, _ in candidates:
         try:
             df = pd.read_csv(filepath)
-            if set(df.columns) != set(STANDARD_COLUMNS):
+            if set(df.columns) != set(INDEX_STANDARD_COLUMNS):
                 continue
             df['date'] = pd.to_datetime(df['date'])
             mask = (df['date'] >= pd.to_datetime(start)) & (
@@ -167,7 +169,7 @@ def load_shanghai_composite(start, end):
         try:
             df = ak.index_zh_a_hist(symbol='sh000001', start_date=start, end_date=end)
             df = df[list(_AKSHARE_COLUMN_MAP.keys())]
-            df.columns = STANDARD_COLUMNS
+            df.columns = INDEX_STANDARD_COLUMNS
             last_err = None
             break
         except Exception as e:
