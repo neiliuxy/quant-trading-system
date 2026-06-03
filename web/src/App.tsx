@@ -1150,12 +1150,13 @@ export default function App() {
               </section>
             )}
 
-            {result?.index_data && result.index_data.length > 0 && (
-              <>
-              <section className="panel">
-                <div className="chart-header">
-                  <h3>上证指数 K 线 + MA + BOLL</h3>
-                </div>
+            {result && (
+              result.index_data.length > 0 ? (
+                <>
+                <section className="panel">
+                  <div className="chart-header">
+                    <h3>上证指数 K 线 + MA + BOLL</h3>
+                  </div>
 
                 <div className="line-toggles">
                   {(['ma5', 'ma10', 'ma20', 'ma60', 'boll'] as const).map((key) => (
@@ -1314,6 +1315,22 @@ export default function App() {
                 </div>
               </section>
               </>
+              ) : (
+                <section className="panel">
+                  <h3>上证指数</h3>
+                  <p style={{ color: '#627282' }}>
+                    上证指数数据加载失败（网络或数据源问题），请重试回测。
+                  </p>
+                  <button
+                    className="secondary"
+                    type="button"
+                    onClick={() => selectedJob && submit(true)}
+                    disabled={submitting || !selectedJob}
+                  >
+                    <RefreshCcw size={16} /> 重新运行
+                  </button>
+                </section>
+              )
             )}
 
             <section className="panel">
