@@ -79,7 +79,7 @@ class TestCalcMacd:
         for i in range(34):
             assert macd[i] is None
 
-    def test_dif_at_index_25_equals_zero(self):
+    def test_dif_at_index_25_is_not_none(self):
         # 线性递增序列的 EMA12 与 EMA26 在 i=25 之后才第一次都有值
         closes = [float(i) for i in range(40)]
         dif, dea, macd = calc_macd(closes, fast=12, slow=26, signal=9)
