@@ -163,17 +163,19 @@ def load_shanghai_composite(start, end):
     # ── 2. 下载并缓存 ────────────────────────────────────
     print('正在获取上证综合指数历史数据...')
 
-    # 2a. AkShare index_zh_a_hist，重试 3 次
-    # 注意：ak.index_zh_a_hist 默认只返回 6 列（日期/开/收/高/低/成交量），
-    # 没有「成交额」。我们只选实际存在的列，并用 close*volume*100 作为
-    # 成交额的合理近似（单位：元）。
+    # 2a. AkShare stock_zh_index_daily（腾讯数据源），重试 3 次
+    # 改用此接口的原因：ak.index_zh_a_hist（东方财富）在部分代理环境下
+    # 无法连通（80.push2.eastmoney.com 被代理拦截），而腾讯接口稳定可用。
+    # 该接口返回全历史 OHLCV（volume 单位为「手」，1 手=100 股），
+    # 不含「成交额」，我们用 close*volume*100 作为合理近似（单位：元）。
     last_err = None
     for attempt in range(1, 4):
         try:
-            df = ak.index_zh_a_hist(symbol='sh000001', start_date=start, end_date=end)
-            existing_cols = [c for c in _AKSHARE_COLUMN_MAP.keys() if c in df.columns]
-            df = df[existing_cols]
-            df.columns = [_AKSHARE_COLUMN_MAP[c] for c in existing_cols]
+            full_df = ak.stock_zh_index_daily(symbol='sh000001')
+            full_df['date'] = pd.to_datetime(full_df['date'])
+            mask = (full_df['date'] >= pd.to_datetime(start)) & (
+                full_df['date'] <= pd.to_datetime(end))
+            df = full_df[mask].copy()
             if 'amount' not in df.columns:
                 df['amount'] = df['close'] * df['volume'] * 100
             last_err = None
@@ -189,8 +191,6 @@ def load_shanghai_composite(start, end):
 
     cache_path = os.path.join(_CACHE_DIR, f'sh000001_上证综合指数_{start}_{end}.csv')
     df.to_csv(cache_path, index=False)
-
-    df['date'] = pd.to_datetime(df['date'])
     return df
 
 
