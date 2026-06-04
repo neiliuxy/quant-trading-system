@@ -142,6 +142,7 @@ interface MaVisibility {
   ma10: boolean;
   ma20: boolean;
   ma60: boolean;
+  boll: boolean;
 }
 
 interface IndexMaVisibility {
@@ -176,6 +177,7 @@ export default function App() {
     ma10: true,
     ma20: true,
     ma60: true,
+    boll: false,
   });
   const [indexMaVisibility, setIndexMaVisibility] = useState<IndexMaVisibility>({
     ma5: true,
@@ -188,6 +190,7 @@ export default function App() {
     setIndexMaVisibility((prev) => ({ ...prev, [key]: !prev[key] }));
   };
   type IndicatorKey = 'macd' | 'kdj' | 'volume' | 'amount';
+  const [stockSelectedIndicator, setStockSelectedIndicator] = useState<IndicatorKey>('macd');
   const [selectedIndicator, setSelectedIndicator] = useState<IndicatorKey>('macd');
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(0);
@@ -338,6 +341,7 @@ export default function App() {
     const ma10 = calcMA(closes, 10);
     const ma20 = calcMA(closes, 20);
     const ma60 = calcMA(closes, 60);
+    const boll = calcBoll(closes, 20, 2.0);
 
     // Build trade markers
     const tradeMap = buildTradeMarkerMap(result.trades);
@@ -348,6 +352,9 @@ export default function App() {
       ma10: ma10[i],
       ma20: ma20[i],
       ma60: ma60[i],
+      boll_upper: boll.upper[i],
+      boll_mid: boll.mid[i],
+      boll_lower: boll.lower[i],
       ...tradeMap.get(d.date),
     }));
   }, [result]);
@@ -364,6 +371,55 @@ export default function App() {
 
     return data;
   }, [priceDataWithMA, chartDateRange]);
+
+  const stockIndicatorData = useMemo(() => {
+    if (!priceDataWithMA.length) return [];
+    const highs = priceDataWithMA.map((d) => d.high);
+    const lows = priceDataWithMA.map((d) => d.low);
+    const closes = priceDataWithMA.map((d) => d.close);
+
+    if (stockSelectedIndicator === 'macd') {
+      const { dif, dea, macd } = calcMacd(closes);
+      return priceDataWithMA.map((d, i) => ({
+        date: d.date,
+        isUp: d.close >= d.open,
+        dif: dif[i],
+        dea: dea[i],
+        macd: macd[i],
+      }));
+    }
+    if (stockSelectedIndicator === 'kdj') {
+      const { k, d, j } = calcKdj(highs, lows, closes);
+      return priceDataWithMA.map((p, i) => ({
+        date: p.date,
+        k: k[i],
+        d: d[i],
+        j: j[i],
+      }));
+    }
+    if (stockSelectedIndicator === 'volume') {
+      return priceDataWithMA.map((d) => ({
+        date: d.date,
+        isUp: d.close >= d.open,
+        value: d.volume,
+      }));
+    }
+    return priceDataWithMA.map((d) => ({
+      date: d.date,
+      isUp: d.close >= d.open,
+      value: (d.close * d.volume) / 1e8,
+    }));
+  }, [priceDataWithMA, stockSelectedIndicator]);
+
+  const filteredStockIndicatorData = useMemo(() => {
+    if (!stockIndicatorData.length) return [];
+    if (chartDateRange?.start && chartDateRange?.end) {
+      return stockIndicatorData.filter(
+        (d) => d.date >= chartDateRange.start && d.date <= chartDateRange.end
+      );
+    }
+    return stockIndicatorData;
+  }, [stockIndicatorData, chartDateRange]);
 
   const indexDataWithMA = useMemo(() => {
     if (!result?.index_data?.length) return [];
@@ -945,40 +1001,23 @@ export default function App() {
             </section>
 
             {result?.price_data?.length > 0 && (
+              <>
               <section className="panel">
                 <div className="chart-header">
-                  <h3>K 线图 & MA 均线</h3>
+                  <h3>回测股票 K 线 + MA + BOLL</h3>
                 </div>
 
                 <div className="line-toggles">
-                  <button
-                    className={`toggle-btn ${maVisibility.ma5 ? 'active' : ''}`}
-                    onClick={() => toggleMaVisibility('ma5')}
-                  >
-                    {maVisibility.ma5 ? <Eye size={14} /> : <EyeOff size={14} />}
-                    MA5
-                  </button>
-                  <button
-                    className={`toggle-btn ${maVisibility.ma10 ? 'active' : ''}`}
-                    onClick={() => toggleMaVisibility('ma10')}
-                  >
-                    {maVisibility.ma10 ? <Eye size={14} /> : <EyeOff size={14} />}
-                    MA10
-                  </button>
-                  <button
-                    className={`toggle-btn ${maVisibility.ma20 ? 'active' : ''}`}
-                    onClick={() => toggleMaVisibility('ma20')}
-                  >
-                    {maVisibility.ma20 ? <Eye size={14} /> : <EyeOff size={14} />}
-                    MA20
-                  </button>
-                  <button
-                    className={`toggle-btn ${maVisibility.ma60 ? 'active' : ''}`}
-                    onClick={() => toggleMaVisibility('ma60')}
-                  >
-                    {maVisibility.ma60 ? <Eye size={14} /> : <EyeOff size={14} />}
-                    MA60
-                  </button>
+                  {(['ma5', 'ma10', 'ma20', 'ma60', 'boll'] as const).map((key) => (
+                    <button
+                      key={key}
+                      className={`toggle-btn ${maVisibility[key] ? 'active' : ''}`}
+                      onClick={() => toggleMaVisibility(key)}
+                    >
+                      {maVisibility[key] ? <Eye size={14} /> : <EyeOff size={14} />}
+                      {key === 'boll' ? 'BOLL' : key.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
 
                 <div className="chart-date-range">
@@ -1034,6 +1073,7 @@ export default function App() {
                           if (name === 'MA10') return [value?.toFixed(2), 'MA10'];
                           if (name === 'MA20') return [value?.toFixed(2), 'MA20'];
                           if (name === 'MA60') return [value?.toFixed(2), 'MA60'];
+                          if (typeof value === 'number') return [value.toFixed(2), name];
                           return [value, name];
                         }}
                         labelFormatter={(label: string) => {
@@ -1097,6 +1137,13 @@ export default function App() {
                           connectNulls={false}
                         />
                       )}
+                      {maVisibility.boll && (
+                        <>
+                          <Line type="monotone" dataKey="boll_upper" stroke="#a855f7" dot={false} strokeWidth={1} name="BOLL 上轨" isAnimationActive={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="boll_mid" stroke="#eab308" dot={false} strokeWidth={1.2} name="BOLL 中轨" isAnimationActive={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="boll_lower" stroke="#a855f7" dot={false} strokeWidth={1} name="BOLL 下轨" isAnimationActive={false} connectNulls={false} />
+                        </>
+                      )}
                       {filteredPriceData.map((point, index) => (
                         point.buy && (
                           <ReferenceDot
@@ -1138,10 +1185,71 @@ export default function App() {
                   </div>
                 </div>
               </section>
+              <section className="panel">
+                <div className="chart-header">
+                  <h3>回测股票 技术指标</h3>
+                  <select
+                    value={stockSelectedIndicator}
+                    onChange={(e) => setStockSelectedIndicator(e.target.value as IndicatorKey)}
+                    style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5df', background: '#fff' }}
+                  >
+                    <option value="macd">MACD</option>
+                    <option value="kdj">KDJ</option>
+                    <option value="volume">成交量</option>
+                    <option value="amount">成交额（估算亿元）</option>
+                  </select>
+                </div>
+
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <ComposedChart data={filteredStockIndicatorData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" minTickGap={32} />
+                      <YAxis domain={['auto', 'auto']} />
+                      <Tooltip />
+                      {stockSelectedIndicator === 'macd' && (
+                        <>
+                          <Bar dataKey="macd" isAnimationActive={false} name="MACD">
+                            {filteredStockIndicatorData.map((entry, i) => (
+                              <Cell key={`stock-m-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
+                            ))}
+                          </Bar>
+                          <Line type="monotone" dataKey="dif" stroke="#facc15" dot={false} strokeWidth={1.4} name="DIF" isAnimationActive={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="dea" stroke="#f97316" dot={false} strokeWidth={1.4} name="DEA" isAnimationActive={false} connectNulls={false} />
+                        </>
+                      )}
+                      {stockSelectedIndicator === 'kdj' && (
+                        <>
+                          <Line type="monotone" dataKey="k" stroke="#f3f4f6" dot={false} strokeWidth={1.4} name="K" isAnimationActive={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="d" stroke="#facc15" dot={false} strokeWidth={1.4} name="D" isAnimationActive={false} connectNulls={false} />
+                          <Line type="monotone" dataKey="j" stroke="#a855f7" dot={false} strokeWidth={1.4} name="J" isAnimationActive={false} connectNulls={false} />
+                          <ReferenceLine y={80} stroke="#9ca3af" strokeDasharray="2 2" />
+                          <ReferenceLine y={20} stroke="#9ca3af" strokeDasharray="2 2" />
+                        </>
+                      )}
+                      {stockSelectedIndicator === 'volume' && (
+                        <Bar dataKey="value" isAnimationActive={false} name="Volume">
+                          {filteredStockIndicatorData.map((entry, i) => (
+                            <Cell key={`stock-v-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
+                          ))}
+                        </Bar>
+                      )}
+                      {stockSelectedIndicator === 'amount' && (
+                        <Bar dataKey="value" isAnimationActive={false} name="Amount">
+                          {filteredStockIndicatorData.map((entry, i) => (
+                            <Cell key={`stock-a-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
+                          ))}
+                        </Bar>
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+              </>
             )}
 
             {result && (
-              result.index_data.length > 0 ? (
+              (result.index_data?.length ?? 0) > 0 ? (
                 <>
                 <section className="panel">
                   <div className="chart-header">
