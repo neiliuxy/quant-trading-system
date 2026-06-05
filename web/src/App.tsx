@@ -113,6 +113,30 @@ function CandleShape(props: any) {
   );
 }
 
+function BuyMarker(props: any) {
+  const { cx, cy } = props;
+  if (cx == null || cy == null) return null;
+  const size = 6;
+  const points = [
+    `${cx},${cy - size}`,
+    `${cx - size},${cy + size}`,
+    `${cx + size},${cy + size}`,
+  ].join(' ');
+  return <polygon points={points} fill="#22c55e" stroke="#15803d" strokeWidth={1} />;
+}
+
+function SellMarker(props: any) {
+  const { cx, cy } = props;
+  if (cx == null || cy == null) return null;
+  const size = 6;
+  const points = [
+    `${cx},${cy + size}`,
+    `${cx - size},${cy - size}`,
+    `${cx + size},${cy - size}`,
+  ].join(' ');
+  return <polygon points={points} fill="#ef4444" stroke="#b91c1c" strokeWidth={1} />;
+}
+
 function buildTradeMarkerMap(trades: Array<{ date: string }>): Map<string, { buy?: boolean; sell?: boolean }> {
   const map = new Map<string, { buy?: boolean; sell?: boolean }>();
   trades.forEach((trade, index) => {
@@ -963,10 +987,8 @@ export default function App() {
                           x={point.date}
                           y={point.value}
                           yAxisId="left"
-                          r={5}
-                          fill="#22c55e"
-                          stroke="#16a34a"
-                          strokeWidth={2}
+                          shape={BuyMarker}
+                          ifOverflow="extendDomain"
                         />
                       )
                     ))}
@@ -977,10 +999,8 @@ export default function App() {
                           x={point.date}
                           y={point.value}
                           yAxisId="left"
-                          r={5}
-                          fill="#ef4444"
-                          stroke="#dc2626"
-                          strokeWidth={2}
+                          shape={SellMarker}
+                          ifOverflow="extendDomain"
                         />
                       )
                     ))}
@@ -1149,11 +1169,9 @@ export default function App() {
                           <ReferenceDot
                             key={`kline-buy-${index}`}
                             x={point.date}
-                            y={point.close}
-                            r={5}
-                            fill="#22c55e"
-                            stroke="#16a34a"
-                            strokeWidth={2}
+                            y={point.low}
+                            shape={BuyMarker}
+                            ifOverflow="extendDomain"
                           />
                         )
                       ))}
@@ -1162,11 +1180,9 @@ export default function App() {
                           <ReferenceDot
                             key={`kline-sell-${index}`}
                             x={point.date}
-                            y={point.close}
-                            r={5}
-                            fill="#ef4444"
-                            stroke="#dc2626"
-                            strokeWidth={2}
+                            y={point.high}
+                            shape={SellMarker}
+                            ifOverflow="extendDomain"
                           />
                         )
                       ))}
@@ -1195,8 +1211,8 @@ export default function App() {
                   >
                     <option value="macd">MACD</option>
                     <option value="kdj">KDJ</option>
-                    <option value="volume">成交量</option>
-                    <option value="amount">成交额（估算亿元）</option>
+                    <option value="volume">交易量</option>
+                    <option value="amount">交易额（亿元）</option>
                   </select>
                 </div>
 
