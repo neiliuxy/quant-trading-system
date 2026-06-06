@@ -124,8 +124,9 @@ def _read_cached_frame(cache_path, expected_columns):
         df = pd.read_csv(cache_path)
     except Exception:
         return None
-    if list(df.columns) != list(expected_columns):
+    if set(df.columns) != set(expected_columns):
         return None
+    df = df[list(expected_columns)].copy()
     df['date'] = pd.to_datetime(df['date'])
     return df
 
@@ -265,8 +266,13 @@ def load_market_turnover_data(start, end):
     if cached_df is not None:
         return cached_df
 
+    index_df = load_shanghai_composite(start, end)
+    if index_df is None or index_df.empty:
+        return pd.DataFrame(columns=STANDARD_COLUMNS)
+
     rows = []
-    for current in pd.date_range(pd.to_datetime(start), pd.to_datetime(end), freq='B'):
+    trading_dates = pd.to_datetime(index_df['date']).drop_duplicates().sort_values()
+    for current in trading_dates:
         date_text = current.strftime('%Y%m%d')
         total_turnover = float(_fetch_sse_turnover(date_text)) + float(_fetch_szse_turnover(date_text))
         rows.append(
