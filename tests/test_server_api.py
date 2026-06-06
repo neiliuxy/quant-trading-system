@@ -48,7 +48,12 @@ def test_strategies_endpoint_lists_registered_strategies(tmp_path):
     response = client.get('/api/strategies')
     assert response.status_code == 200
     body = response.json()
-    assert [item['id'] for item in body] == ['swing_ma_boll', 'bollinger_reversal']
+    assert [item['id'] for item in body] == [
+        'b1_strategy',
+        'swing_ma_boll',
+        'bollinger_reversal',
+        'citic_wave',
+    ]
 
 
 def test_create_job_persists_strategy_fields(tmp_path, monkeypatch):
