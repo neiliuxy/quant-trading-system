@@ -63,7 +63,6 @@ class TestB1StrategySpec:
         """Test spec has correct id"""
         assert B1_STRATEGY_SPEC.id == 'b1_strategy'
 
-    @pytest.mark.xfail(reason='Existing B1 display-name mismatch is unrelated to Task 1')
     def test_spec_name(self):
         """Test spec has correct name"""
         assert B1_STRATEGY_SPEC.name == 'B1 Strategy (少妇战法)'
