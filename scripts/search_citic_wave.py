@@ -1,10 +1,6 @@
 import itertools
-import re
 import sys
-from datetime import date
 from pathlib import Path
-
-import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -16,13 +12,13 @@ from backtest.data_loader import (  # noqa: E402
     load_shanghai_composite,
 )
 from backtest.service import BacktestRequest, run_backtest_service  # noqa: E402
-from market.market_analyzer import _fetch_index_data  # noqa: E402
 
 
 TRAIN_END = '20241231'
 VALID_START = '20250101'
 SYMBOL = '600030'
 START = '20210531'
+END = '20260529'
 CASH = 100000.0
 RISK_PERCENT = 0.95
 
@@ -44,72 +40,32 @@ def _format_params(params: dict[str, float | int]) -> str:
     return ', '.join(f'{name}={params[name]}' for name in PARAM_ORDER)
 
 
-def _latest_cached_range_end(symbol: str) -> str | None:
-    pattern = re.compile(rf'^{re.escape(symbol)}(?:_.+)?_(\d{{8}})_(\d{{8}})\.csv$')
-    candidates: list[str] = []
-    for path in DATA_DIR.glob(f'{symbol}_*.csv'):
-        match = pattern.match(path.name)
-        if match:
-            candidates.append(match.group(2))
-    return max(candidates) if candidates else None
-
-
-def _frame_end(df: pd.DataFrame) -> str:
-    return pd.to_datetime(df['date']).max().strftime('%Y%m%d')
-
-
-def _ensure_market_turnover_cache(start: str, end: str, sh_df: pd.DataFrame, sz_df: pd.DataFrame) -> Path:
+def _require_turnover_cache(start: str, end: str) -> None:
     cache_path = DATA_DIR / f'market_turnover_{start}_{end}.csv'
     if cache_path.exists():
-        return cache_path
-
-    sh_amount = sh_df[['date', 'amount']].rename(columns={'amount': 'sh_amount'})
-    sz_amount = sz_df[['date', 'amount']].rename(columns={'amount': 'sz_amount'})
-    merged = sh_amount.merge(sz_amount, on='date', how='inner').sort_values('date')
-    merged = merged[
-        (pd.to_datetime(merged['date']) >= pd.to_datetime(start))
-        & (pd.to_datetime(merged['date']) <= pd.to_datetime(end))
-    ].copy()
-    if merged.empty:
-        raise RuntimeError('Unable to build market turnover cache: no overlapping SH/SZ index dates.')
-
-    merged['close'] = merged['sh_amount'].astype(float) + merged['sz_amount'].astype(float)
-    frame = pd.DataFrame({
-        'date': pd.to_datetime(merged['date']),
-        'open': merged['close'],
-        'high': merged['close'],
-        'low': merged['close'],
-        'close': merged['close'],
-        'volume': 0.0,
-    })
-    frame.to_csv(cache_path, index=False)
-    return cache_path
+        return
+    raise RuntimeError(
+        f'Missing required turnover cache: {cache_path}. '
+        'This script uses a fixed evaluation window and expects the exact market_turnover cache files to already exist.'
+    )
 
 
-def _prepare_search_context() -> tuple[str, pd.DataFrame, pd.DataFrame]:
-    cached_end = _latest_cached_range_end(SYMBOL) or date.today().strftime('%Y%m%d')
-    stock_df = load_market_data(SYMBOL, START, cached_end)
+def _validate_inputs() -> None:
+    stock_df = load_market_data(SYMBOL, START, END)
     if stock_df is None or stock_df.empty:
-        raise RuntimeError(f'No cached market data available for {SYMBOL}.')
+        raise RuntimeError(f'No market data available for {SYMBOL} in {START}..{END}.')
 
-    stock_end = _frame_end(stock_df)
-    sh_df = load_shanghai_composite(START, stock_end)
+    sh_df = load_shanghai_composite(START, END)
     if sh_df is None or sh_df.empty:
         raise RuntimeError('Shanghai composite data is required for citic_wave evaluation.')
-    sz_df = _fetch_index_data('sz399001', START, stock_end)
-    etf_df = load_security_etf_data(START, stock_end)
+
+    etf_df = load_security_etf_data(START, END)
     if etf_df is None or etf_df.empty:
         raise RuntimeError('Security ETF data is required for citic_wave evaluation.')
 
-    common_end = min(stock_end, _frame_end(sh_df), _frame_end(sz_df), _frame_end(etf_df))
-    sh_df = sh_df[pd.to_datetime(sh_df['date']) <= pd.to_datetime(common_end)].copy()
-    sz_df = sz_df[pd.to_datetime(sz_df['date']) <= pd.to_datetime(common_end)].copy()
-    return common_end, sh_df, sz_df
-
-
-def _ensure_range_caches(start: str, end: str, sh_df: pd.DataFrame, sz_df: pd.DataFrame) -> None:
-    load_security_etf_data(start, end)
-    _ensure_market_turnover_cache(start, end, sh_df, sz_df)
+    _require_turnover_cache(START, TRAIN_END)
+    _require_turnover_cache(VALID_START, END)
+    _require_turnover_cache(START, END)
 
 
 def _run_once(start: str, end: str, params: dict[str, float | int]):
@@ -140,14 +96,14 @@ def _rank_key(row: dict) -> tuple:
     )
 
 
-def _write_report(rows: list[dict], end: str) -> None:
+def _write_report(rows: list[dict]) -> None:
     SEARCH_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     header = [
         'citic_wave parameter search',
         f'symbol: {SYMBOL}',
-        f'full_sample: {START}..{end}',
+        f'full_sample: {START}..{END}',
         f'train: {START}..{TRAIN_END}',
-        f'validation: {VALID_START}..{end}',
+        f'validation: {VALID_START}..{END}',
         f'service_market_filter: False',
         f'risk_percent: {RISK_PERCENT}',
         'ranking: valid_return desc, valid_max_drawdown asc, full_return desc, full_max_drawdown asc',
@@ -171,10 +127,7 @@ def _write_report(rows: list[dict], end: str) -> None:
 
 
 def main() -> None:
-    end, sh_df, sz_df = _prepare_search_context()
-    _ensure_range_caches(START, TRAIN_END, sh_df, sz_df)
-    _ensure_range_caches(VALID_START, end, sh_df, sz_df)
-    _ensure_range_caches(START, end, sh_df, sz_df)
+    _validate_inputs()
     rows = []
     grid = list(itertools.product(
         BREAKOUT_WINDOWS,
@@ -193,8 +146,8 @@ def main() -> None:
         }
         print(f'[{index}/{total}] {_format_params(params)}')
         train = _run_once(START, TRAIN_END, params)
-        valid = _run_once(VALID_START, end, params)
-        full = _run_once(START, end, params)
+        valid = _run_once(VALID_START, END, params)
+        full = _run_once(START, END, params)
         rows.append({
             'params': params,
             'train_return_pct': float(train.total_return_pct),
@@ -207,11 +160,11 @@ def main() -> None:
         })
 
     rows.sort(key=_rank_key)
-    _write_report(rows, end)
+    _write_report(rows)
 
     best = rows[0]
     print('Best result:')
-    print(f"  end={end}")
+    print(f'  end={END}')
     print(f"  params={_format_params(best['params'])}")
     print(f"  valid_return={_format_pct(best['valid_return_pct'])}")
     print(f"  full_return={_format_pct(best['full_return_pct'])}")
