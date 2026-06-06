@@ -39,6 +39,22 @@ class CiticWaveStrategy(bt.Strategy):
 
         self.entry_price = None
         self.bar_executed = None
+        self.order = None
+
+    def notify_order(self, order):
+        if order.status in (order.Submitted, order.Accepted):
+            return
+
+        if order.status == order.Completed:
+            if order.isbuy():
+                self.entry_price = order.executed.price
+                self.bar_executed = len(self)
+            else:
+                self.entry_price = None
+                self.bar_executed = None
+
+        if order.status in (order.Completed, order.Canceled, order.Margin, order.Rejected):
+            self.order = None
 
     def _market_filter_passed(self):
         return (
@@ -55,6 +71,9 @@ class CiticWaveStrategy(bt.Strategy):
         if len(self.data) < max(self.p.market_ma_long, self.p.breakout_window, 60):
             return
 
+        if self.order is not None:
+            return
+
         if self.position:
             stop_loss_price = max(
                 self.entry_price * (1.0 - self.p.stop_loss_pct),
@@ -63,21 +82,15 @@ class CiticWaveStrategy(bt.Strategy):
             held_bars = len(self) - self.bar_executed
 
             if self.data.close[0] <= stop_loss_price:
-                self.close()
-                self.entry_price = None
-                self.bar_executed = None
+                self.order = self.close()
                 return
 
             if self.data.close[0] < self.ma_exit[0] and self.ma_fast[0] < self.ma_mid[0]:
-                self.close()
-                self.entry_price = None
-                self.bar_executed = None
+                self.order = self.close()
                 return
 
             if held_bars >= self.p.max_hold_days:
-                self.close()
-                self.entry_price = None
-                self.bar_executed = None
+                self.order = self.close()
                 return
 
             return
@@ -102,9 +115,7 @@ class CiticWaveStrategy(bt.Strategy):
         if breakout_signal or pullback_signal:
             size = self._position_size()
             if size > 0:
-                self.buy(size=size)
-                self.entry_price = self.data_stock.close[0]
-                self.bar_executed = len(self)
+                self.order = self.buy(size=size)
 
 
 CITIC_WAVE_STRATEGY_SPEC = StrategySpec(
