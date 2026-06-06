@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Activity, BookOpen, Play, RefreshCcw, ZoomIn, ZoomOut, Eye, EyeOff, Trash2 } from 'lucide-react';
 import {
   Bar,
@@ -15,15 +15,14 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { createJob, createMarketFilterComparison, deleteJob, deleteAllJobs, getJob, getResult, listJobs, listStrategies } from './api';
-import type { BacktestResult, Job, StrategySpec } from './types';
-import { StockSelect } from './StockSelect';
-import { STOCKS } from './stocks';
-import StrategyParamsForm from './StrategyParamsForm';
+import { createJob, createMarketFilterComparison, deleteJob, deleteAllJobs, getJob, getResult, getStocks, listJobs, listStrategies } from './api';
+import type { BacktestFormValues, BacktestResult, Job, StrategySpec } from './types';
+import ChartDateRangeControl from './ChartDateRangeControl';
+import RunForm from './RunForm';
 import StrategyGuide from './StrategyGuide';
 import { calcMA, calcBoll, calcMacd, calcKdj } from './indicators';
 
-const defaultForm = {
+const defaultForm: BacktestFormValues = {
   symbol: '000001',
   start: getDefaultStartDate(),
   end: getDefaultEndDate(),
@@ -47,27 +46,12 @@ function getDefaultEndDate(): string {
   return date.toISOString().split('T')[0].replace(/-/g, '');
 }
 
-function formatDateForInput(dateStr: string): string {
-  if (!dateStr || dateStr.length !== 8) return '';
-  return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
-}
-
-function formatDateFromInput(dateStr: string): string {
-  if (!dateStr) return '';
-  return dateStr.replace(/-/g, '');
-}
-
 function formatPct(value: number) {
   return `${value.toFixed(2)}%`;
 }
 
-function getStockName(code: string): string {
-  const stock = STOCKS.find(s => s.code === code);
-  return stock ? stock.name : code;
-}
-
 const statusLabels: Record<string, string> = {
-  'queued': '等待中',
+  'queued': '排队中',
   'running': '运行中',
   'completed': '已完成',
   'failed': '失败',
@@ -153,6 +137,18 @@ function buildTradeMarkerMap(trades: Array<{ date: string }>): Map<string, { buy
   return map;
 }
 
+function sameJob(lhs: Job | null, rhs: Job | null): boolean {
+  if (lhs === rhs) return true;
+  if (!lhs || !rhs) return false;
+  return (
+    lhs.id === rhs.id &&
+    lhs.status === rhs.status &&
+    lhs.updated_at === rhs.updated_at &&
+    lhs.error === rhs.error &&
+    lhs.cache_hit === rhs.cache_hit
+  );
+}
+
 interface LineVisibility {
   equity: boolean;
   totalScore: boolean;
@@ -178,14 +174,13 @@ interface IndexMaVisibility {
 }
 
 export default function App() {
-  const [form, setForm] = useState(defaultForm);
+  const [runFormDefaults, setRunFormDefaults] = useState<BacktestFormValues>(defaultForm);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [strategies, setStrategies] = useState<StrategySpec[]>([]);
-  const [selectedStrategyId, setSelectedStrategyId] = useState('swing_ma_boll');
   const [comparisonJob, setComparisonJob] = useState<Job | null>(null);
   const [comparisonResult, setComparisonResult] = useState<BacktestResult | null>(null);
   const [zoom, setZoom] = useState({ start: 0, end: 100 });
@@ -223,34 +218,42 @@ export default function App() {
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-
-  const selectedStrategy = useMemo(
-    () => strategies.find((s) => s.id === selectedStrategyId) ?? strategies[0],
-    [strategies, selectedStrategyId]
-  );
+  const [stockLookup, setStockLookup] = useState<Map<string, string>>(new Map());
 
   function getStrategyName(id: string): string {
     const found = strategies.find(s => s.id === id);
     return found?.name ?? id;
   }
 
-  async function refreshJobs() {
-    const rows = await listJobs();
-    setJobs(rows);
-    if (!selectedJob && rows.length > 0) {
-      setSelectedJob(rows[0]);
-    }
+  function getStockName(code: string): string {
+    return stockLookup.get(code) ?? code;
   }
+
+  const refreshJobs = useMemo(
+    () => async () => {
+      const rows = await listJobs();
+      setJobs(rows);
+      if (!selectedJob && rows.length > 0) {
+        setSelectedJob(rows[0]);
+      }
+    },
+    [selectedJob]
+  );
 
   useEffect(() => {
     refreshJobs().catch((err) => setError(err.message));
+    getStocks()
+      .then((stocks) => setStockLookup(new Map(stocks.map((stock) => [stock.code, stock.name]))))
+      .catch(() => undefined);
     listStrategies()
       .then((specs) => {
         setStrategies(specs);
         if (specs.length > 0) {
-          setForm((prev) => ({ ...prev, strategy_params: Object.fromEntries(
-            (specs[0]?.params ?? []).map((p) => [p.name, p.default])
-          ) }));
+          setRunFormDefaults((prev) => ({
+            ...prev,
+            strategy_id: specs[0].id,
+            strategy_params: Object.fromEntries((specs[0]?.params ?? []).map((p) => [p.name, p.default])),
+          }));
         }
       })
       .catch((err) => setError(err.message));
@@ -262,8 +265,8 @@ export default function App() {
     async function poll() {
       const latest = await getJob(selectedJob.id);
       if (cancelled) return;
-      setSelectedJob(latest);
-      setJobs((prev) => prev.map((job) => (job.id === latest.id ? latest : job)));
+      setSelectedJob((prev) => (sameJob(prev, latest) ? prev : latest));
+      setJobs((prev) => prev.map((job) => (job.id === latest.id && !sameJob(job, latest) ? latest : job)));
       if (latest.status === 'completed') {
         const payload = await getResult(latest.id);
         if (!cancelled) setResult(payload);
@@ -273,14 +276,19 @@ export default function App() {
       }
     }
     poll().catch((err) => setError(err.message));
-    const handle = window.setInterval(() => {
-      poll().catch((err) => setError(err.message));
-    }, selectedJob.status === 'queued' || selectedJob.status === 'running' ? 1500 : 6000);
+    const shouldPoll = selectedJob.status === 'queued' || selectedJob.status === 'running';
+    const handle = shouldPoll
+      ? window.setInterval(() => {
+          poll().catch((err) => setError(err.message));
+        }, 1500)
+      : null;
     return () => {
       cancelled = true;
-      window.clearInterval(handle);
+      if (handle !== null) {
+        window.clearInterval(handle);
+      }
     };
-  }, [selectedJob?.id]);
+  }, [selectedJob?.id, selectedJob?.status]);
 
   useEffect(() => {
     if (!comparisonJob) return;
@@ -288,31 +296,36 @@ export default function App() {
     async function pollComparison() {
       const latest = await getJob(comparisonJob.id);
       if (cancelled) return;
-      setComparisonJob(latest);
+      setComparisonJob((prev) => (sameJob(prev, latest) ? prev : latest));
       if (latest.status === 'completed') {
         const payload = await getResult(latest.id);
         if (!cancelled) setComparisonResult(payload);
       }
     }
     pollComparison().catch((err) => setError(err.message));
-    const handle = window.setInterval(() => {
-      pollComparison().catch((err) => setError(err.message));
-    }, 1500);
+    const shouldPoll = comparisonJob.status === 'queued' || comparisonJob.status === 'running';
+    const handle = shouldPoll
+      ? window.setInterval(() => {
+          pollComparison().catch((err) => setError(err.message));
+        }, 1500)
+      : null;
     return () => {
       cancelled = true;
-      window.clearInterval(handle);
+      if (handle !== null) {
+        window.clearInterval(handle);
+      }
     };
-  }, [comparisonJob?.id]);
+  }, [comparisonJob?.id, comparisonJob?.status]);
 
   const kpis = useMemo(() => {
     if (!result) return [];
     return [
-      ['收益率', formatPct(result.total_return_pct)],
-      ['最大回撤', formatPct(result.max_drawdown_pct)],
+      ['Return', formatPct(result.total_return_pct)],
+      ['Max Drawdown', formatPct(result.max_drawdown_pct)],
       ['胜率', formatPct(result.win_rate_pct)],
-      ['交易数', String(result.trade_count)],
-      ['最终价值', result.final_value.toFixed(2)],
-      ['评分均值', result.market_score_summary.mean?.toFixed(2) ?? 'N/A'],
+      ['Trades', String(result.trade_count)],
+      ['Final Value', result.final_value.toFixed(2)],
+      ['Average Score', result.market_score_summary.mean?.toFixed(2) ?? 'N/A'],
     ];
   }, [result]);
 
@@ -510,7 +523,7 @@ export default function App() {
     return indexDataWithMA.map((d) => ({
       date: d.date,
       isUp: d.close >= d.open,
-      value: d.amount / 1e8,  // 转亿元
+      value: d.amount / 1e8,  // 杞嚎鍏?
     }));
   }, [indexDataWithMA, selectedIndicator]);
 
@@ -523,6 +536,19 @@ export default function App() {
     }
     return indexIndicatorData;
   }, [indexIndicatorData, chartDateRange]);
+
+  const equityBuyPoints = useMemo(() => filteredData.filter(p => p.buy), [filteredData]);
+  const equitySellPoints = useMemo(() => filteredData.filter(p => p.sell), [filteredData]);
+  const klineBuyPoints = useMemo(() => filteredPriceData.filter(p => p.buy), [filteredPriceData]);
+  const klineSellPoints = useMemo(() => filteredPriceData.filter(p => p.sell), [filteredPriceData]);
+  const filteredPriceDataMap = useMemo(
+    () => new Map(filteredPriceData.map(d => [d.date, d])),
+    [filteredPriceData]
+  );
+  const filteredIndexDataMap = useMemo(
+    () => new Map(filteredIndexData.map(d => [d.date, d])),
+    [filteredIndexData]
+  );
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -555,43 +581,39 @@ export default function App() {
     setIsDragging(false);
   };
 
-  async function submit(force = false) {
-    setSubmitting(true);
-    setError(null);
-    try {
-      const job = await createJob({ ...form, force });
-      setSelectedJob(job);
-      await refreshJobs();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  const submit = useMemo(
+    () => async (form: BacktestFormValues, force = false) => {
+      setSubmitting(true);
+      setError(null);
+      setRunFormDefaults(form);
+      try {
+        const job = await createJob({ ...form, force });
+        setSelectedJob(job);
+        await refreshJobs();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [refreshJobs]
+  );
 
-  async function compareMarketFilter() {
-    if (!selectedJob) return;
-    setError(null);
-    try {
-      const response = await createMarketFilterComparison(selectedJob.id);
-      setComparisonJob(response.comparison_job);
-      setComparisonResult(null);
-      await refreshJobs();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function handleStrategyChange(id: string) {
-    setSelectedStrategyId(id);
-    const spec = strategies.find((s) => s.id === id);
-    if (spec) {
-      const defaults = Object.fromEntries(
-        spec.params.map((p) => [p.name, p.default])
-      );
-      setForm((prev) => ({ ...prev, strategy_id: id, strategy_params: defaults }));
-    }
-  }
+  const compareMarketFilter = useMemo(
+    () => async () => {
+      if (!selectedJob) return;
+      setError(null);
+      try {
+        const response = await createMarketFilterComparison(selectedJob.id);
+        setComparisonJob(response.comparison_job);
+        setComparisonResult(null);
+        await refreshJobs();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [refreshJobs, selectedJob]
+  );
 
   const toggleLineVisibility = (line: keyof LineVisibility) => {
     setLineVisibility(prev => ({
@@ -652,66 +674,20 @@ export default function App() {
             <h1>QuantX</h1>
             <p>回测研究工作台</p>
           </div>
-          <button className="nav-guide-btn" onClick={() => setShowGuide(true)} title="策略库">
+          <button className="nav-guide-btn" onClick={() => setShowGuide(true)} title="策略说明">
             <BookOpen size={16} />
-            策略库
+            策略说明
           </button>
         </div>
 
-        <form className="run-form" onSubmit={(event) => { event.preventDefault(); submit(false); }}>
-          <label>代码
-            <StockSelect
-              value={form.symbol}
-              onChange={(code) => setForm({ ...form, symbol: code })}
-            />
-          </label>
-          <label>开始日期
-            <input
-              type="date"
-              value={formatDateForInput(form.start)}
-              onChange={(e) => setForm({ ...form, start: formatDateFromInput(e.target.value) })}
-            />
-          </label>
-          <label>结束日期
-            <input
-              type="date"
-              value={formatDateForInput(form.end)}
-              onChange={(e) => setForm({ ...form, end: formatDateFromInput(e.target.value) })}
-              min={formatDateForInput(form.start)}
-            />
-          </label>
-          <label>初始资金<input type="number" value={form.cash} onChange={(e) => setForm({ ...form, cash: Number(e.target.value) })} /></label>
-          <label className="check-row">
-            <input type="checkbox" checked={form.use_market_filter} onChange={(e) => setForm({ ...form, use_market_filter: e.target.checked })} />
-            市场过滤器
-          </label>
-          <label>策略
-            <select
-              value={selectedStrategyId}
-              onChange={(e) => handleStrategyChange(e.target.value)}
-            >
-              {strategies.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </label>
-          {selectedStrategy && (
-            <StrategyParamsForm
-              spec={selectedStrategy}
-              value={form.strategy_params}
-              onChange={(params) => setForm((prev) => ({ ...prev, strategy_params: params }))}
-            />
-          )}
-          <button className="primary" type="submit" disabled={submitting}>
-            <Play size={16} /> 开始回测
-          </button>
-          <button className="secondary" type="button" onClick={() => submit(true)} disabled={submitting || !selectedJob}>
-            <RefreshCcw size={16} /> 强制重新运行
-          </button>
-          <button className="secondary" type="button" onClick={compareMarketFilter} disabled={!selectedJob}>
-            对比过滤器
-          </button>
-        </form>
+        <RunForm
+          initialValue={runFormDefaults}
+          strategies={strategies}
+          submitting={submitting}
+          hasSelectedJob={Boolean(selectedJob)}
+          onSubmit={submit}
+          onCompareMarketFilter={compareMarketFilter}
+        />
 
         <section className="history">
           <div className="history-header">
@@ -721,7 +697,7 @@ export default function App() {
                 className="clear-all-btn"
                 onClick={() => setDeleteAllConfirm(true)}
                 disabled={isDeleting || jobs.length === 0}
-                title="Clear all history"
+                title="清空历史"
               >
                 清空历史
               </button>
@@ -752,7 +728,7 @@ export default function App() {
           <div className="result-header">
             <div>
               <h2>{selectedJob.symbol} {getStockName(selectedJob.symbol)} 回测</h2>
-              <p>{selectedJob.start_date} 至 {selectedJob.end_date} · {selectedJob.cache_hit ? '缓存命中' : '新任务'} · {getStrategyName(selectedJob.strategy_id)}</p>
+              <p>{selectedJob.start_date} 至 {selectedJob.end_date} | {selectedJob.cache_hit ? '缓存命中' : '新任务'} | {getStrategyName(selectedJob.strategy_id)}</p>
               <p className="result-params">
                 {(() => {
                   try {
@@ -832,7 +808,7 @@ export default function App() {
                   title="Toggle equity curve"
                 >
                   {lineVisibility.equity ? <Eye size={14} /> : <EyeOff size={14} />}
-                  权益价值
+                  权益净值
                 </button>
                 <button
                   className={`toggle-btn ${lineVisibility.totalScore ? 'active' : ''}`}
@@ -868,44 +844,12 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="chart-date-range">
-                <label>显示时间范围
-                  <div className="date-range-inputs">
-                    <input
-                      type="text"
-                      placeholder="YYYYMMDD"
-                      value={chartDateRange?.start || selectedJob?.start_date || ''}
-                      onChange={(e) => {
-                        const start = formatDateFromInput(e.target.value);
-                        setChartDateRange(prev => ({
-                          start,
-                          end: prev?.end || formatDateFromInput(selectedJob?.end_date || ''),
-                        }));
-                      }}
-                    />
-                    <span>至</span>
-                    <input
-                      type="text"
-                      placeholder="YYYYMMDD"
-                      value={chartDateRange?.end || selectedJob?.end_date || ''}
-                      onChange={(e) => {
-                        const end = formatDateFromInput(e.target.value);
-                        setChartDateRange(prev => ({
-                          start: prev?.start || formatDateFromInput(selectedJob?.start_date || ''),
-                          end,
-                        }));
-                      }}
-                    />
-                    <button
-                      className="reset-date-btn"
-                      onClick={() => setChartDateRange(null)}
-                      title="Reset to full range"
-                    >
-                      重置
-                    </button>
-                  </div>
-                </label>
-              </div>
+              <ChartDateRangeControl
+                value={chartDateRange}
+                defaultStart={selectedJob?.start_date || ''}
+                defaultEnd={selectedJob?.end_date || ''}
+                onChange={setChartDateRange}
+              />
 
               <div
                 className="chart-container"
@@ -931,7 +875,7 @@ export default function App() {
                         stroke="#2563eb"
                         dot={false}
                         strokeWidth={2}
-                        name="权益价值"
+                        name="权益净值"
                         isAnimationActive={false}
                       />
                     )}
@@ -980,34 +924,30 @@ export default function App() {
                         isAnimationActive={false}
                       />
                     )}
-                    {filteredData.map((point, index) => (
-                      point.buy && (
-                        <ReferenceDot
-                          key={`buy-${index}`}
-                          x={point.date}
-                          y={point.value}
-                          yAxisId="left"
-                          shape={BuyMarker}
-                          ifOverflow="extendDomain"
-                        />
-                      )
+                    {equityBuyPoints.map((point) => (
+                      <ReferenceDot
+                        key={`buy-${point.date}`}
+                        x={point.date}
+                        y={point.value}
+                        yAxisId="left"
+                        shape={BuyMarker}
+                        ifOverflow="extendDomain"
+                      />
                     ))}
-                    {filteredData.map((point, index) => (
-                      point.sell && (
-                        <ReferenceDot
-                          key={`sell-${index}`}
-                          x={point.date}
-                          y={point.value}
-                          yAxisId="left"
-                          shape={SellMarker}
-                          ifOverflow="extendDomain"
-                        />
-                      )
+                    {equitySellPoints.map((point) => (
+                      <ReferenceDot
+                        key={`sell-${point.date}`}
+                        x={point.date}
+                        y={point.value}
+                        yAxisId="left"
+                        shape={SellMarker}
+                        ifOverflow="extendDomain"
+                      />
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              <p className="chart-hint">提示：拖动图表左右移动查看附近时间段的数据</p>
+              <p className="chart-hint">提示：拖动图表左右查看相邻时间段数据。</p>
               <div className="trade-legend">
                 <div className="trade-legend-item">
                   <div className="trade-legend-dot buy"></div>
@@ -1040,46 +980,12 @@ export default function App() {
                   ))}
                 </div>
 
-                <div className="chart-date-range">
-                  <label>显示时间范围
-                    <div className="date-range-inputs">
-                      <input
-                        type="text"
-                        placeholder="YYYYMMDD"
-                        value={chartDateRange?.start || selectedJob?.start_date || ''}
-                        onChange={(e) => {
-                          const start = formatDateFromInput(e.target.value);
-                          setChartDateRange(prev => ({
-                            start,
-                            end: prev?.end || formatDateFromInput(selectedJob?.end_date || ''),
-                          }));
-                        }}
-                      />
-                      <span>至</span>
-                      <input
-                        type="text"
-                        placeholder="YYYYMMDD"
-                        value={chartDateRange?.end || selectedJob?.end_date || ''}
-                        onChange={(e) => {
-                          const end = formatDateFromInput(e.target.value);
-                          setChartDateRange(prev => ({
-                            start: prev?.start || formatDateFromInput(selectedJob?.start_date || ''),
-                            end,
-                          }));
-                        }}
-                        min={formatDateForInput(selectedJob?.start_date || '')}
-                        max={formatDateForInput(selectedJob?.end_date || '')}
-                      />
-                      <button
-                        className="reset-date-btn"
-                        onClick={() => setChartDateRange(null)}
-                        title="Reset to full range"
-                      >
-                        重置
-                      </button>
-                    </div>
-                  </label>
-                </div>
+              <ChartDateRangeControl
+                value={chartDateRange}
+                defaultStart={selectedJob?.start_date || ''}
+                defaultEnd={selectedJob?.end_date || ''}
+                onChange={setChartDateRange}
+              />
 
                 <div className="chart-container">
                   <ResponsiveContainer width="100%" height={400}>
@@ -1097,7 +1003,7 @@ export default function App() {
                           return [value, name];
                         }}
                         labelFormatter={(label: string) => {
-                          const point = filteredPriceData.find(d => d.date === label);
+                          const point = filteredPriceDataMap.get(label);
                           if (!point) return label;
                           return `${label} | O:${point.open?.toFixed(2)} H:${point.high?.toFixed(2)} L:${point.low?.toFixed(2)} C:${point.close?.toFixed(2)}`;
                         }}
@@ -1164,27 +1070,23 @@ export default function App() {
                           <Line type="monotone" dataKey="boll_lower" stroke="#a855f7" dot={false} strokeWidth={1} name="BOLL 下轨" isAnimationActive={false} connectNulls={false} />
                         </>
                       )}
-                      {filteredPriceData.map((point, index) => (
-                        point.buy && (
-                          <ReferenceDot
-                            key={`kline-buy-${index}`}
-                            x={point.date}
-                            y={point.low}
-                            shape={BuyMarker}
-                            ifOverflow="extendDomain"
-                          />
-                        )
+                      {klineBuyPoints.map((point) => (
+                        <ReferenceDot
+                          key={`kline-buy-${point.date}`}
+                          x={point.date}
+                          y={point.low}
+                          shape={BuyMarker}
+                          ifOverflow="extendDomain"
+                        />
                       ))}
-                      {filteredPriceData.map((point, index) => (
-                        point.sell && (
-                          <ReferenceDot
-                            key={`kline-sell-${index}`}
-                            x={point.date}
-                            y={point.high}
-                            shape={SellMarker}
-                            ifOverflow="extendDomain"
-                          />
-                        )
+                      {klineSellPoints.map((point) => (
+                        <ReferenceDot
+                          key={`kline-sell-${point.date}`}
+                          x={point.date}
+                          y={point.high}
+                          shape={SellMarker}
+                          ifOverflow="extendDomain"
+                        />
                       ))}
                     </ComposedChart>
                   </ResponsiveContainer>
@@ -1203,7 +1105,7 @@ export default function App() {
               </section>
               <section className="panel">
                 <div className="chart-header">
-                  <h3>回测股票 技术指标</h3>
+                  <h3>回测股票技术指标</h3>
                   <select
                     value={stockSelectedIndicator}
                     onChange={(e) => setStockSelectedIndicator(e.target.value as IndicatorKey)}
@@ -1211,8 +1113,8 @@ export default function App() {
                   >
                     <option value="macd">MACD</option>
                     <option value="kdj">KDJ</option>
-                    <option value="volume">交易量</option>
-                    <option value="amount">交易额（亿元）</option>
+                    <option value="volume">Volume</option>
+                    <option value="amount">Amount (100M CNY)</option>
                   </select>
                 </div>
 
@@ -1285,44 +1187,12 @@ export default function App() {
                   ))}
                 </div>
 
-                <div className="chart-date-range">
-                  <label>显示时间范围
-                    <div className="date-range-inputs">
-                      <input
-                        type="text"
-                        placeholder="YYYYMMDD"
-                        value={chartDateRange?.start || selectedJob?.start_date || ''}
-                        onChange={(e) => {
-                          const start = formatDateFromInput(e.target.value);
-                          setChartDateRange((prev) => ({
-                            start,
-                            end: prev?.end || formatDateFromInput(selectedJob?.end_date || ''),
-                          }));
-                        }}
-                      />
-                      <span>至</span>
-                      <input
-                        type="text"
-                        placeholder="YYYYMMDD"
-                        value={chartDateRange?.end || selectedJob?.end_date || ''}
-                        onChange={(e) => {
-                          const end = formatDateFromInput(e.target.value);
-                          setChartDateRange((prev) => ({
-                            start: prev?.start || formatDateFromInput(selectedJob?.start_date || ''),
-                            end,
-                          }));
-                        }}
-                      />
-                      <button
-                        className="reset-date-btn"
-                        onClick={() => setChartDateRange(null)}
-                        title="Reset to full range"
-                      >
-                        重置
-                      </button>
-                    </div>
-                  </label>
-                </div>
+              <ChartDateRangeControl
+                value={chartDateRange}
+                defaultStart={selectedJob?.start_date || ''}
+                defaultEnd={selectedJob?.end_date || ''}
+                onChange={setChartDateRange}
+              />
 
                 <div className="chart-container">
                   <ResponsiveContainer width="100%" height={400}>
@@ -1332,12 +1202,12 @@ export default function App() {
                       <YAxis domain={['auto', 'auto']} />
                       <Tooltip
                         formatter={(value: any, name: string) => {
-                          if (value == null) return ['—', name];
+                          if (value == null) return ['--', name];
                           if (typeof value === 'number') return [value.toFixed(2), name];
                           return [value, name];
                         }}
                         labelFormatter={(label: string) => {
-                          const point = filteredIndexData.find((d) => d.date === label);
+                          const point = filteredIndexDataMap.get(label);
                           if (!point) return label;
                           return `${label} | O:${point.open.toFixed(2)} H:${point.high.toFixed(2)} L:${point.low.toFixed(2)} C:${point.close.toFixed(2)}`;
                         }}
@@ -1370,7 +1240,7 @@ export default function App() {
 
               <section className="panel">
                 <div className="chart-header">
-                  <h3>上证指数 技术指标</h3>
+                  <h3>上证指数技术指标</h3>
                   <select
                     value={selectedIndicator}
                     onChange={(e) => setSelectedIndicator(e.target.value as IndicatorKey)}
@@ -1378,8 +1248,8 @@ export default function App() {
                   >
                     <option value="macd">MACD</option>
                     <option value="kdj">KDJ</option>
-                    <option value="volume">交易量</option>
-                    <option value="amount">交易额（亿元）</option>
+                    <option value="volume">Volume</option>
+                    <option value="amount">Amount (100M CNY)</option>
                   </select>
                 </div>
 
@@ -1411,14 +1281,14 @@ export default function App() {
                         </>
                       )}
                       {selectedIndicator === 'volume' && (
-                        <Bar dataKey="value" isAnimationActive={false} name="交易量">
+                        <Bar dataKey="value" isAnimationActive={false} name="Volume">
                           {filteredIndicatorData.map((entry, i) => (
                             <Cell key={`v-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
                           ))}
                         </Bar>
                       )}
                       {selectedIndicator === 'amount' && (
-                        <Bar dataKey="value" isAnimationActive={false} name="交易额">
+                        <Bar dataKey="value" isAnimationActive={false} name="Amount">
                           {filteredIndicatorData.map((entry, i) => (
                             <Cell key={`a-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
                           ))}
@@ -1433,12 +1303,12 @@ export default function App() {
                 <section className="panel">
                   <h3>上证指数</h3>
                   <p style={{ color: '#627282' }}>
-                    上证指数数据加载失败（网络或数据源问题），请重试回测。
+                    上证指数数据加载失败，可能是网络或数据源问题，请重试回测。
                   </p>
                   <button
                     className="secondary"
                     type="button"
-                    onClick={() => selectedJob && submit(true)}
+                    onClick={() => selectedJob && submit(runFormDefaults, true)}
                     disabled={submitting || !selectedJob}
                   >
                     <RefreshCcw size={16} /> 重新运行
@@ -1465,7 +1335,7 @@ export default function App() {
             </section>
           </>
         ) : (
-          <div className="empty-state">提交或选择已完成的任务以查看结果。</div>
+          <div className="empty-state">提交任务或选择已完成任务后可查看结果。</div>
         )}
       </section>
 
@@ -1497,7 +1367,7 @@ export default function App() {
       {deleteAllConfirm && (
         <div className="modal-overlay" onClick={() => setDeleteAllConfirm(false)}>
           <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>清空所有历史</h3>
+            <h3>清空历史</h3>
             <p>确定要删除所有回测任务吗？此操作无法撤销。</p>
             <div className="modal-buttons">
               <button
@@ -1521,3 +1391,4 @@ export default function App() {
     </main>
   );
 }
+

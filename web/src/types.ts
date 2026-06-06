@@ -14,6 +14,19 @@ export interface StrategySpec {
   params: StrategyParamSpec[];
 }
 
+export interface BacktestFormValues {
+  symbol: string;
+  start: string;
+  end: string;
+  cash: number;
+  use_market_filter: boolean;
+  risk_percent: number;
+  fast_ma: number;
+  slow_ma: number;
+  strategy_id: string;
+  strategy_params: Record<string, unknown>;
+}
+
 export interface Job {
   id: number;
   run_key: string;

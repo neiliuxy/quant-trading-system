@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { BookOpen } from 'lucide-react';
-import type { StrategyGuideData } from './types';
 import { strategyGuides } from './strategyGuides';
 
 type Props = {
@@ -16,7 +15,7 @@ export default function StrategyGuide({ onBack }: Props) {
       <aside className="guide-sidebar">
         <div className="guide-sidebar-header">
           <BookOpen size={20} />
-          <h2>策略库</h2>
+          <h2>策略说明</h2>
         </div>
         <nav className="guide-nav">
           {strategyGuides.map((s) => (

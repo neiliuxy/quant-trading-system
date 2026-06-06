@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, AlertCircle } from 'lucide-react';
 import { getStocks } from './api';
-import { searchStocks } from './stocks';
 
 interface Stock {
   code: string;
@@ -57,11 +56,13 @@ export function StockSelect({ value, onChange }: StockSelectProps) {
       return;
     }
 
-    // Use fuzzy search from stocks module
-    const results = searchStocks(searchQuery);
-    // Filter results to only include stocks from allStocks
-    const stockCodes = new Set(allStocks.map(s => s.code));
-    setFilteredStocks(results.filter(s => stockCodes.has(s.code)));
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    setFilteredStocks(
+      allStocks.filter(
+        (stock) =>
+          stock.code.includes(normalizedQuery) || stock.name.toLowerCase().includes(normalizedQuery)
+      )
+    );
   }, [searchQuery, allStocks]);
 
   useEffect(() => {

@@ -76,11 +76,25 @@ export function deleteAllJobs(): Promise<{ status: string; deleted_count: number
 }
 
 export async function getStocks(query?: string): Promise<Stock[]> {
-  // Import local stocks directly
-  const { STOCKS, searchStocks } = await import('./stocks');
+  const normalizedQuery = query?.trim().toLowerCase() ?? '';
 
-  if (query) {
-    return searchStocks(query);
+  if (!normalizedQuery && stocksCache.has('all')) {
+    return stocksCache.get('all')!;
   }
-  return STOCKS;
+
+  // Import local stocks directly
+  const { STOCKS } = await import('./stocks');
+  const allStocks = STOCKS as Stock[];
+
+  if (!stocksCache.has('all')) {
+    stocksCache.set('all', allStocks);
+  }
+
+  if (!normalizedQuery) {
+    return allStocks;
+  }
+
+  return allStocks.filter((stock) =>
+    stock.code.includes(normalizedQuery) || stock.name.toLowerCase().includes(normalizedQuery)
+  );
 }
