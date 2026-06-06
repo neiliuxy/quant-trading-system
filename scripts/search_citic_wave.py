@@ -8,6 +8,7 @@ if str(ROOT) not in sys.path:
 
 from backtest.data_loader import (  # noqa: E402
     load_market_data,
+    load_market_turnover_data,
     load_security_etf_data,
     load_shanghai_composite,
 )
@@ -40,14 +41,10 @@ def _format_params(params: dict[str, float | int]) -> str:
     return ', '.join(f'{name}={params[name]}' for name in PARAM_ORDER)
 
 
-def _require_turnover_cache(start: str, end: str) -> None:
-    cache_path = DATA_DIR / f'market_turnover_{start}_{end}.csv'
-    if cache_path.exists():
-        return
-    raise RuntimeError(
-        f'Missing required turnover cache: {cache_path}. '
-        'This script uses a fixed evaluation window and expects the exact market_turnover cache files to already exist.'
-    )
+def _ensure_turnover_available(start: str, end: str) -> None:
+    df = load_market_turnover_data(start, end)
+    if df is None or df.empty:
+        raise RuntimeError(f'Unable to load market turnover data for {start}..{end}.')
 
 
 def _validate_inputs() -> None:
@@ -63,9 +60,9 @@ def _validate_inputs() -> None:
     if etf_df is None or etf_df.empty:
         raise RuntimeError('Security ETF data is required for citic_wave evaluation.')
 
-    _require_turnover_cache(START, TRAIN_END)
-    _require_turnover_cache(VALID_START, END)
-    _require_turnover_cache(START, END)
+    _ensure_turnover_available(START, TRAIN_END)
+    _ensure_turnover_available(VALID_START, END)
+    _ensure_turnover_available(START, END)
 
 
 def _run_once(start: str, end: str, params: dict[str, float | int]):

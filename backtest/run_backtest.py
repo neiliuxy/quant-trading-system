@@ -136,7 +136,14 @@ if __name__ == '__main__':
     parser.add_argument(
         '--strategy',
         default='swing',
-        choices=['swing', 'swing_ma_boll', 'bollinger_reversal', 'b1', 'citic_wave'],
+        choices=[
+            'swing',
+            'swing_ma_boll',
+            'bollinger_reversal',
+            'b1',
+            'b1_strategy',
+            'citic_wave',
+        ],
         help='Strategy ID',
     )
     parser.add_argument('--short_ma', type=int, default=None, help='Short MA period')

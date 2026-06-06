@@ -109,6 +109,32 @@ def test_cli_run_accepts_legacy_b1_strategy_alias(monkeypatch, capsys):
     assert 'Final value:' in output
 
 
+def test_cli_run_accepts_canonical_b1_strategy_id(monkeypatch, capsys):
+    import backtest.run_backtest as cli_backtest
+
+    stock_df = generate_synthetic_data(start='20240101', end='20240630')
+    index_df = stock_df.copy()
+
+    monkeypatch.setattr(cli_backtest, 'load_market_data', lambda symbol, start, end: stock_df.copy())
+    monkeypatch.setattr(
+        cli_backtest,
+        '_load_cli_required_feed_frames',
+        lambda strategy_id, start, end: [index_df.copy()],
+    )
+
+    cli_backtest.run(
+        symbol='600030',
+        start='20240101',
+        end='20240630',
+        cash=100000.0,
+        use_market_filter=False,
+        strategy_id='b1_strategy',
+    )
+
+    output = capsys.readouterr().out
+    assert 'Final value:' in output
+
+
 def test_market_filter_scores_are_exposed(monkeypatch):
     df = generate_synthetic_data(start='20240101', end='20240630')
 
