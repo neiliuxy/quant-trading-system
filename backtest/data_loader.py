@@ -116,6 +116,20 @@ def _parse_filename(filepath):
     return None
 
 
+def _read_cached_frame(cache_path, expected_columns):
+    """Read a cached CSV and normalize the date column."""
+    if not os.path.exists(cache_path):
+        return None
+    try:
+        df = pd.read_csv(cache_path)
+    except Exception:
+        return None
+    if list(df.columns) != list(expected_columns):
+        return None
+    df['date'] = pd.to_datetime(df['date'])
+    return df
+
+
 def load_shanghai_composite(start, end):
     """
     加载上证综合指数数据。
@@ -190,6 +204,83 @@ def load_shanghai_composite(start, end):
         return None
 
     cache_path = os.path.join(_CACHE_DIR, f'sh000001_上证综合指数_{start}_{end}.csv')
+    df.to_csv(cache_path, index=False)
+    return df
+
+
+def load_security_etf_data(start, end, symbol='sh512880'):
+    """Load a security ETF series and normalize it to index-style columns."""
+    start, end = resolve_date_range(start, end)
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+
+    cache_path = os.path.join(_CACHE_DIR, f'{symbol}_{start}_{end}.csv')
+    cached_df = _read_cached_frame(cache_path, INDEX_STANDARD_COLUMNS)
+    if cached_df is not None:
+        return cached_df
+
+    df = ak.fund_etf_hist_sina(symbol=symbol).copy()
+    if df.empty:
+        return pd.DataFrame(columns=INDEX_STANDARD_COLUMNS)
+
+    df['date'] = pd.to_datetime(df['date'])
+    mask = (df['date'] >= pd.to_datetime(start)) & (df['date'] <= pd.to_datetime(end))
+    df = df.loc[mask, STANDARD_COLUMNS].copy()
+    df['amount'] = 0.0
+    df = df[INDEX_STANDARD_COLUMNS]
+    df.to_csv(cache_path, index=False)
+    return df
+
+
+def _fetch_sse_turnover(date_text: str) -> float:
+    """Fetch SSE stock turnover for one trading day."""
+    df = ak.stock_sse_deal_daily(date=date_text)
+    row = df.loc[df['单日情况'] == '成交金额']
+    if row.empty:
+        raise RuntimeError(f'SSE turnover not found for {date_text}')
+    if '股票' in row.columns and pd.notna(row['股票'].iloc[0]):
+        return float(row['股票'].iloc[0])
+    columns = [col for col in ['主板A', '主板B', '科创板'] if col in row.columns]
+    return float(row[columns].fillna(0).sum(axis=1).iloc[0])
+
+
+def _fetch_szse_turnover(date_text: str) -> float:
+    """Fetch SZSE stock turnover for one trading day."""
+    df = ak.stock_szse_summary(date=date_text)
+    exact_row = df.loc[df['证券类别'] == '股票']
+    if not exact_row.empty:
+        return float(exact_row['成交金额'].iloc[0])
+    stock_rows = df[df['证券类别'].astype(str).str.contains('股票|A股|B股', na=False)]
+    if stock_rows.empty:
+        raise RuntimeError(f'SZSE turnover not found for {date_text}')
+    return float(stock_rows['成交金额'].sum())
+
+
+def load_market_turnover_data(start, end):
+    """Load aggregated two-market turnover as a price-like OHLCV frame."""
+    start, end = resolve_date_range(start, end)
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+
+    cache_path = os.path.join(_CACHE_DIR, f'market_turnover_{start}_{end}.csv')
+    cached_df = _read_cached_frame(cache_path, STANDARD_COLUMNS)
+    if cached_df is not None:
+        return cached_df
+
+    rows = []
+    for current in pd.date_range(pd.to_datetime(start), pd.to_datetime(end), freq='B'):
+        date_text = current.strftime('%Y%m%d')
+        total_turnover = float(_fetch_sse_turnover(date_text)) + float(_fetch_szse_turnover(date_text))
+        rows.append(
+            {
+                'date': current,
+                'open': total_turnover,
+                'high': total_turnover,
+                'low': total_turnover,
+                'close': total_turnover,
+                'volume': 0.0,
+            }
+        )
+
+    df = pd.DataFrame(rows, columns=STANDARD_COLUMNS)
     df.to_csv(cache_path, index=False)
     return df
 
