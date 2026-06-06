@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -17,6 +17,7 @@ class StrategySpec:
     description: str
     strategy_class: type
     params: tuple[StrategyParamSpec, ...]
+    required_data: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def defaults(self) -> dict[str, Any]:

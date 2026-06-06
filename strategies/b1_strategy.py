@@ -163,4 +163,5 @@ B1_STRATEGY_SPEC = StrategySpec(
         StrategyParamSpec('max_pct_change', 'Max Daily Change', 'float', 0.02),
         StrategyParamSpec('bbuphold_days', 'BBI Up Days', 'int', 3),
     ),
+    required_data=('shanghai_index',),
 )
