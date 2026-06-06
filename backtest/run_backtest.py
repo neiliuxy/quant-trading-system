@@ -47,14 +47,18 @@ def generate_synthetic_data(start='2020-01-01', end='2023-01-01', start_price=12
 
 
 def _normalize_strategy_id(strategy_id):
-    return 'swing_ma_boll' if strategy_id == 'swing' else strategy_id
+    aliases = {
+        'swing': 'swing_ma_boll',
+        'b1': 'b1_strategy',
+    }
+    return aliases.get(strategy_id, strategy_id)
 
 
 def _load_cli_required_feed_frames(strategy_id, start, end):
     try:
         return _load_required_feed_frames(get_strategy_spec(strategy_id).required_data, start, end)
     except ValueError as exc:
-        if strategy_id == 'b1' and "shanghai_index" in str(exc):
+        if strategy_id == 'b1_strategy' and "shanghai_index" in str(exc):
             print('Generating synthetic Shanghai Composite data for B1 strategy')
             index_df = generate_synthetic_data(start=start, end=end, start_price=3000)
             index_df['date'] = pd.to_datetime(index_df['date'])
