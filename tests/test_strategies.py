@@ -45,6 +45,18 @@ def test_citic_wave_declares_required_data():
     )
 
 
+def test_citic_wave_is_registered_with_expected_defaults():
+    spec = get_strategy_spec('citic_wave')
+    assert spec.id == 'citic_wave'
+    assert spec.required_data == (
+        'shanghai_index',
+        'security_etf',
+        'market_turnover',
+    )
+    assert spec.defaults['market_ma_long'] == 120
+    assert spec.defaults['sector_ma'] == 60
+
+
 def test_swing_ma_boll_spec():
     spec = get_strategy_spec('swing_ma_boll')
     assert spec.name == 'Swing MA + Bollinger'
