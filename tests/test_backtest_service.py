@@ -55,6 +55,34 @@ def test_run_backtest_service_accepts_strategy_params(monkeypatch):
     assert result.symbol == '000001'
 
 
+def test_run_backtest_service_adds_required_feeds_for_citic_wave(monkeypatch):
+    stock_df = generate_synthetic_data(start='20240101', end='20240630')
+    shanghai_df = stock_df.copy()
+    shanghai_df['amount'] = 3e12
+    security_etf_df = stock_df.copy()
+    security_etf_df['amount'] = 0.0
+    market_turnover_df = stock_df.copy()
+
+    monkeypatch.setattr('backtest.service.load_market_data', lambda symbol, start, end: stock_df.copy())
+    monkeypatch.setattr('backtest.service.load_shanghai_composite', lambda start, end: shanghai_df.copy())
+    monkeypatch.setattr('backtest.service.load_security_etf_data', lambda start, end: security_etf_df.copy())
+    monkeypatch.setattr('backtest.service.load_market_turnover_data', lambda start, end: market_turnover_df.copy())
+
+    request = BacktestRequest(
+        symbol='600030',
+        start='20240101',
+        end='20240630',
+        cash=100000.0,
+        use_market_filter=False,
+        strategy_id='citic_wave',
+    )
+
+    result = run_backtest_service(request)
+
+    assert result.symbol == '600030'
+    assert result.final_value > 0
+
+
 def test_market_filter_scores_are_exposed(monkeypatch):
     df = generate_synthetic_data(start='20240101', end='20240630')
 

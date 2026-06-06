@@ -6,7 +6,13 @@ from typing import Any
 import backtrader as bt
 import pandas as pd
 
-from backtest.data_loader import load_market_data, load_shanghai_composite, resolve_date_range
+from backtest.data_loader import (
+    load_market_data,
+    load_market_turnover_data,
+    load_security_etf_data,
+    load_shanghai_composite,
+    resolve_date_range,
+)
 from market.market_analyzer import MarketConfig, get_market_score
 from strategies.registry import get_strategy_spec
 
@@ -151,6 +157,23 @@ def _market_score_payload(start: str, end: str, enabled: bool) -> tuple[dict[str
     return score_dict, rows, summary
 
 
+def _load_required_feed_frames(required_data: tuple[str, ...], start: str, end: str) -> list[pd.DataFrame]:
+    loaders = {
+        'shanghai_index': load_shanghai_composite,
+        'security_etf': load_security_etf_data,
+        'market_turnover': load_market_turnover_data,
+    }
+    frames = []
+    for feed_id in required_data:
+        if feed_id not in loaders:
+            raise ValueError(f"Unknown required feed: '{feed_id}'")
+        frame = loaders[feed_id](start, end)
+        if frame is None or frame.empty:
+            raise ValueError(f"Required feed '{feed_id}' returned no data")
+        frames.append(frame)
+    return frames
+
+
 def run_backtest_service(request: BacktestRequest) -> BacktestResult:
     req = request.normalized()
     spec = get_strategy_spec(req.strategy_id)
@@ -178,6 +201,8 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
 
     cerebro = bt.Cerebro()
     cerebro.adddata(data)
+    for frame in _load_required_feed_frames(spec.required_data, req.start, req.end):
+        cerebro.adddata(bt.feeds.PandasData(dataname=frame, datetime=0))
     strategy_kwargs = dict(req.strategy_params)
     strategy_kwargs['risk_percent'] = req.risk_percent
     strategy_kwargs['market_score_dict'] = score_dict
