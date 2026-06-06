@@ -9,14 +9,15 @@ export function calcMA(closes: number[], period: number): (number | null)[] {
   if (period <= 0) throw new Error(`period must be positive, got ${period}`);
   if (closes.length === 0) return [];
   const result: (number | null)[] = [];
+  let sum = 0;
   for (let i = 0; i < closes.length; i++) {
+    sum += closes[i];
+    if (i >= period) sum -= closes[i - period];
     if (i < period - 1) {
       result.push(null);
-      continue;
+    } else {
+      result.push(sum / period);
     }
-    let sum = 0;
-    for (let j = i - period + 1; j <= i; j++) sum += closes[j];
-    result.push(sum / period);
   }
   return result;
 }
@@ -51,23 +52,29 @@ export function calcBoll(
 ): { upper: (number | null)[]; mid: (number | null)[]; lower: (number | null)[] } {
   if (period <= 0) throw new Error(`period must be positive, got ${period}`);
   if (closes.length === 0) return { upper: [], mid: [], lower: [] };
-  const mid = calcMA(closes, period);
+  const mid: (number | null)[] = [];
   const upper: (number | null)[] = [];
   const lower: (number | null)[] = [];
+  let sum = 0;
+  let sumSq = 0;
   for (let i = 0; i < closes.length; i++) {
-    if (i < period - 1 || mid[i] === null) {
+    sum += closes[i];
+    sumSq += closes[i] * closes[i];
+    if (i >= period) {
+      sum -= closes[i - period];
+      sumSq -= closes[i - period] * closes[i - period];
+    }
+    if (i < period - 1) {
+      mid.push(null);
       upper.push(null);
       lower.push(null);
-      continue;
+    } else {
+      const mean = sum / period;
+      const std = Math.sqrt(Math.max(0, sumSq / period - mean * mean));
+      mid.push(mean);
+      upper.push(mean + numStd * std);
+      lower.push(mean - numStd * std);
     }
-    let sum = 0;
-    for (let j = i - period + 1; j <= i; j++) sum += closes[j];
-    const mean = sum / period;
-    let varSum = 0;
-    for (let j = i - period + 1; j <= i; j++) varSum += (closes[j] - mean) ** 2;
-    const std = Math.sqrt(varSum / period);
-    upper.push(mean + numStd * std);
-    lower.push(mean - numStd * std);
   }
   return { upper, mid, lower };
 }
