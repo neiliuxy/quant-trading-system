@@ -10,18 +10,25 @@ class CiticWaveStrategy(bt.Strategy):
         ('sector_ma', 60),
         ('turnover_ma', 20),
         # Breakout / pullback entries
-        ('breakout_window', 40),
+        ('breakout_window', 60),
         ('pullback_lookback', 10),
         ('volume_ma', 20),
         # Bottom-fishing entry (O2): KDJ oversold + positive bar + volume spike
         ('bottom_j_threshold', 5),
         ('bottom_vol_mult', 2.0),
+        # Shock-reversal entry (O4): large intraday gain on huge volume,
+        # NEAR the recent 10-day low. Bypasses the market filter because
+        # the volume/price action alone is a major-reversal signature
+        # (e.g. 2024-09-24 for 600030, +5.6% intraday, 3.86x volume).
+        ('shock_vol_mult', 3.5),
+        ('shock_intraday_pct', 0.04),
+        ('shock_near_low_pct', 0.15),
         # Top filter (O3): reject entries that have run too far above MA60
-        ('max_extension_pct', 0.25),
+        ('max_extension_pct', 0.20),
         # Stop loss / trailing
         ('stop_loss_pct', 0.06),       # hard floor for the stop loss
         ('atr_period', 14),
-        ('atr_multiplier', 2.0),       # primary stop distance (O1)
+        ('atr_multiplier', 1.5),       # primary stop distance (O1)
         ('trailing_atr_mult', 2.0),    # trailing distance once activated
         ('trailing_start_bars', 3),    # bars held before trailing activates
         # Exit / sizing
@@ -134,13 +141,11 @@ class CiticWaveStrategy(bt.Strategy):
 
             return
 
-        if not self._market_filter_passed():
-            return
-
-        # O3: top filter — reject entries that have run too far above MA60
-        if self.data_stock.close[0] > self.ma_slow[0] * (1.0 + self.p.max_extension_pct):
-            return
-
+        # Compute all four signal flags first. The market filter only
+        # gates breakout / pullback / bottom; the shock signal is
+        # strong enough to stand on its own and is allowed to fire even
+        # when the Shanghai 120-day MA hasn't rolled over yet (e.g. the
+        # 2024-09-24 reversal bar).
         breakout_signal = (
             self.data_stock.close[0] >= self.highest_breakout[-1]
             and self.data_stock.volume[0] > self.vol_ma[0]
@@ -160,8 +165,35 @@ class CiticWaveStrategy(bt.Strategy):
             and self.data_stock.close[0] > self.data_stock.open[0]
             and self.data_stock.volume[0] > self.vol_ma[0] * self.p.bottom_vol_mult
         )
+        # O4: shock-reversal — big intraday gain on huge volume, NEAR the
+        # recent 10-day low. The "near low" check is what makes the signal
+        # fire on real bottoms (2024-09-24, when close was 9% above the
+        # 10-day low of 18.77) and not on random high-volume up bars
+        # during a sustained uptrend.
+        shock_signal = (
+            self.data_stock.volume[0] > self.vol_ma[0] * self.p.shock_vol_mult
+            and (
+                self.data_stock.close[0] / self.data_stock.open[0] - 1.0
+                >= self.p.shock_intraday_pct
+            )
+            and self.data_stock.close[0] > self.ma_mid[0]
+            and self.data_stock.close[0] <= self.lowest_pullback[0] * (1.0 + self.p.shock_near_low_pct)
+        )
 
-        if breakout_signal or pullback_signal or bottom_signal:
+        # O3: top filter — reject entries that have run too far above MA60
+        if self.data_stock.close[0] > self.ma_slow[0] * (1.0 + self.p.max_extension_pct):
+            breakout_signal = False
+            pullback_signal = False
+            bottom_signal = False
+            shock_signal = False
+
+        # Market filter gates the trend-following signals but not shock.
+        market_ok = self._market_filter_passed()
+        breakout_signal = breakout_signal and market_ok
+        pullback_signal = pullback_signal and market_ok
+        bottom_signal = bottom_signal and market_ok
+
+        if breakout_signal or pullback_signal or bottom_signal or shock_signal:
             size = self._position_size()
             if size > 0:
                 self.order = self.buy(size=size)
@@ -176,15 +208,18 @@ CITIC_WAVE_STRATEGY_SPEC = StrategySpec(
         StrategyParamSpec('market_ma_long', 'Market MA', 'int', 120),
         StrategyParamSpec('sector_ma', 'Sector MA', 'int', 60),
         StrategyParamSpec('turnover_ma', 'Turnover MA', 'int', 20),
-        StrategyParamSpec('breakout_window', 'Breakout Window', 'int', 40),
+        StrategyParamSpec('breakout_window', 'Breakout Window', 'int', 60),
         StrategyParamSpec('pullback_lookback', 'Pullback Window', 'int', 10),
         StrategyParamSpec('volume_ma', 'Volume MA', 'int', 20),
         StrategyParamSpec('bottom_j_threshold', 'Bottom J Threshold', 'int', 5),
         StrategyParamSpec('bottom_vol_mult', 'Bottom Vol Mult', 'float', 2.0),
-        StrategyParamSpec('max_extension_pct', 'Max Extension %', 'float', 0.25),
+        StrategyParamSpec('shock_vol_mult', 'Shock Vol Mult', 'float', 3.5),
+        StrategyParamSpec('shock_intraday_pct', 'Shock Intraday %', 'float', 0.04),
+        StrategyParamSpec('shock_near_low_pct', 'Shock Near Low %', 'float', 0.15),
+        StrategyParamSpec('max_extension_pct', 'Max Extension %', 'float', 0.20),
         StrategyParamSpec('stop_loss_pct', 'Stop Loss Floor', 'float', 0.06),
         StrategyParamSpec('atr_period', 'ATR Period', 'int', 14),
-        StrategyParamSpec('atr_multiplier', 'ATR Multiple', 'float', 2.0),
+        StrategyParamSpec('atr_multiplier', 'ATR Multiple', 'float', 1.5),
         StrategyParamSpec('trailing_atr_mult', 'Trailing ATR Mult', 'float', 2.0),
         StrategyParamSpec('trailing_start_bars', 'Trailing Start Bars', 'int', 3),
         StrategyParamSpec('max_hold_days', 'Max Hold Days', 'int', 30),

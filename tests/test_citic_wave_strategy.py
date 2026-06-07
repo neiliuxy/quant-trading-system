@@ -117,7 +117,7 @@ def test_citic_wave_spec_exposes_optimization_params():
     assert 'trailing_start_bars' in param_names
     assert spec.defaults['bottom_j_threshold'] == 5
     assert spec.defaults['bottom_vol_mult'] == 2.0
-    assert spec.defaults['max_extension_pct'] == 0.25
+    assert spec.defaults['max_extension_pct'] == 0.20
     assert spec.defaults['trailing_atr_mult'] == 2.0
 
 
