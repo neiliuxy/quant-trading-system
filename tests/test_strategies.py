@@ -13,7 +13,8 @@ def test_registry_exposes_all_strategies():
     assert 'swing_ma_boll' in ids
     assert 'bollinger_reversal' in ids
     assert 'citic_wave' in ids
-    assert len(ids) == 4
+    assert 'sector_rotation' in ids
+    assert len(ids) == 5
 
 
 def test_strategy_spec_includes_params():

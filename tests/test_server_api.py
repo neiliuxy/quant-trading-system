@@ -53,6 +53,7 @@ def test_strategies_endpoint_lists_registered_strategies(tmp_path):
         'swing_ma_boll',
         'bollinger_reversal',
         'citic_wave',
+        'sector_rotation',
     ]
 
 

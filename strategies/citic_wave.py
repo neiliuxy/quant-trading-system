@@ -1,5 +1,6 @@
 import backtrader as bt
 
+from indicators.rsrs import RsrsIndicator
 from strategies.base import StrategyParamSpec, StrategySpec
 
 
@@ -9,6 +10,10 @@ class CiticWaveStrategy(bt.Strategy):
         ('market_ma_long', 120),
         ('sector_ma', 60),
         ('turnover_ma', 20),
+        # RSRS market-timing alternative (replaces the 3-filter when on)
+        ('use_rsrs_filter', False),
+        ('rsrs_period', 18),
+        ('rsrs_threshold', 0.0),
         # Breakout / pullback entries
         ('breakout_window', 60),
         ('pullback_lookback', 10),
@@ -45,6 +50,7 @@ class CiticWaveStrategy(bt.Strategy):
         self.market_ma = bt.ind.SMA(self.data_market.close, period=self.p.market_ma_long)
         self.sector_ma_line = bt.ind.SMA(self.data_sector.close, period=self.p.sector_ma)
         self.turnover_ma_line = bt.ind.SMA(self.data_turnover.close, period=self.p.turnover_ma)
+        self.rsrs = RsrsIndicator(self.data_market, period=self.p.rsrs_period)
 
         self.ma_fast = bt.ind.SMA(self.data_stock.close, period=10)
         self.ma_mid = bt.ind.SMA(self.data_stock.close, period=20)
@@ -88,6 +94,8 @@ class CiticWaveStrategy(bt.Strategy):
             self.order = None
 
     def _market_filter_passed(self):
+        if self.p.use_rsrs_filter:
+            return self.rsrs[0] > self.p.rsrs_threshold
         return (
             self.data_market.close[0] > self.market_ma[0]
             and self.data_sector.close[0] > self.sector_ma_line[0]
@@ -208,6 +216,9 @@ CITIC_WAVE_STRATEGY_SPEC = StrategySpec(
         StrategyParamSpec('market_ma_long', 'Market MA', 'int', 120),
         StrategyParamSpec('sector_ma', 'Sector MA', 'int', 60),
         StrategyParamSpec('turnover_ma', 'Turnover MA', 'int', 20),
+        StrategyParamSpec('use_rsrs_filter', 'Use RSRS Filter', 'bool', False),
+        StrategyParamSpec('rsrs_period', 'RSRS Period', 'int', 18),
+        StrategyParamSpec('rsrs_threshold', 'RSRS Threshold', 'float', 0.0),
         StrategyParamSpec('breakout_window', 'Breakout Window', 'int', 60),
         StrategyParamSpec('pullback_lookback', 'Pullback Window', 'int', 10),
         StrategyParamSpec('volume_ma', 'Volume MA', 'int', 20),
