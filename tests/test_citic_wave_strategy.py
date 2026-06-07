@@ -97,10 +97,47 @@ def test_citic_wave_next_contains_required_entry_and_exit_logic():
     source = inspect.getsource(module.CiticWaveStrategy.next)
     assert 'breakout_signal' in source
     assert 'pullback_signal' in source
+    assert 'bottom_signal' in source
     assert 'self.buy(size=size)' in source
-    assert 'stop_loss_price' in source
+    assert 'current_stop' in source
+    assert 'self.entry_atr' in source
     assert 'self.data.close[0] < self.ma_exit[0]' in source
     assert 'self.bar_executed' in source
+
+
+def test_citic_wave_spec_exposes_optimization_params():
+    module = _load_citic_wave_module()
+
+    spec = module.CITIC_WAVE_STRATEGY_SPEC
+    param_names = {p.name for p in spec.params}
+    assert 'bottom_j_threshold' in param_names
+    assert 'bottom_vol_mult' in param_names
+    assert 'max_extension_pct' in param_names
+    assert 'trailing_atr_mult' in param_names
+    assert 'trailing_start_bars' in param_names
+    assert spec.defaults['bottom_j_threshold'] == 5
+    assert spec.defaults['bottom_vol_mult'] == 2.0
+    assert spec.defaults['max_extension_pct'] == 0.25
+    assert spec.defaults['trailing_atr_mult'] == 2.0
+
+
+def test_citic_wave_init_uses_kdj_for_bottom_signal():
+    module = _load_citic_wave_module()
+
+    source = inspect.getsource(module.CiticWaveStrategy.__init__)
+    assert 'Stochastic' in source
+    assert 'self.j' in source
+
+
+def test_citic_wave_next_has_top_filter_and_trailing_stop():
+    module = _load_citic_wave_module()
+
+    source = inspect.getsource(module.CiticWaveStrategy.next)
+    assert 'max_extension_pct' in source
+    assert 'ma_slow[0] * (1.0 + self.p.max_extension_pct)' in source
+    assert 'trailing_active' in source
+    assert 'trailing_start_bars' in source
+    assert 'highest_since_entry' in source
 
 
 def test_citic_wave_runs_with_four_feeds_without_index_error():

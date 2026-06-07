@@ -5,15 +5,26 @@ from strategies.base import StrategyParamSpec, StrategySpec
 
 class CiticWaveStrategy(bt.Strategy):
     params = (
+        # Market / sector / turnover filters
         ('market_ma_long', 120),
         ('sector_ma', 60),
         ('turnover_ma', 20),
+        # Breakout / pullback entries
         ('breakout_window', 40),
         ('pullback_lookback', 10),
         ('volume_ma', 20),
-        ('stop_loss_pct', 0.06),
+        # Bottom-fishing entry (O2): KDJ oversold + positive bar + volume spike
+        ('bottom_j_threshold', 5),
+        ('bottom_vol_mult', 2.0),
+        # Top filter (O3): reject entries that have run too far above MA60
+        ('max_extension_pct', 0.25),
+        # Stop loss / trailing
+        ('stop_loss_pct', 0.06),       # hard floor for the stop loss
         ('atr_period', 14),
-        ('atr_multiplier', 2.0),
+        ('atr_multiplier', 2.0),       # primary stop distance (O1)
+        ('trailing_atr_mult', 2.0),    # trailing distance once activated
+        ('trailing_start_bars', 3),    # bars held before trailing activates
+        # Exit / sizing
         ('max_hold_days', 30),
         ('risk_percent', 0.95),
     )
@@ -37,7 +48,14 @@ class CiticWaveStrategy(bt.Strategy):
         self.highest_breakout = bt.ind.Highest(self.data_stock.high, period=self.p.breakout_window)
         self.lowest_pullback = bt.ind.Lowest(self.data_stock.low, period=self.p.pullback_lookback)
 
+        # O2: KDJ for bottom-fishing entry
+        stoch = bt.ind.Stochastic(self.data_stock, period=9)
+        self.j = 3.0 * stoch.lines.percK - 2.0 * stoch.lines.percD
+
         self.entry_price = None
+        self.entry_atr = None
+        self.highest_since_entry = None
+        self.trailing_active = False
         self.bar_executed = None
         self.order = None
 
@@ -49,9 +67,15 @@ class CiticWaveStrategy(bt.Strategy):
             if order.isbuy():
                 self.entry_price = order.executed.price
                 self.bar_executed = len(self)
+                self.entry_atr = self.atr[0]
+                self.highest_since_entry = self.data_stock.high[0]
+                self.trailing_active = False
             else:
                 self.entry_price = None
                 self.bar_executed = None
+                self.entry_atr = None
+                self.highest_since_entry = None
+                self.trailing_active = False
 
         if order.status in (order.Completed, order.Canceled, order.Margin, order.Rejected):
             self.order = None
@@ -75,13 +99,28 @@ class CiticWaveStrategy(bt.Strategy):
             return
 
         if self.position:
-            stop_loss_price = max(
-                self.entry_price * (1.0 - self.p.stop_loss_pct),
-                self.entry_price - self.atr[0] * self.p.atr_multiplier,
-            )
             held_bars = len(self) - self.bar_executed
+            if self.highest_since_entry is None:
+                self.highest_since_entry = self.data_stock.high[0]
+            else:
+                self.highest_since_entry = max(
+                    self.highest_since_entry,
+                    self.data_stock.high[0],
+                )
 
-            if self.data.close[0] <= stop_loss_price:
+            # O1: ATR-based primary stop
+            atr_stop = self.entry_price - self.entry_atr * self.p.atr_multiplier
+            pct_floor = self.entry_price * (1.0 - self.p.stop_loss_pct)
+            current_stop = max(atr_stop, pct_floor)
+
+            # ATR trailing stop (top protection)
+            if held_bars >= self.p.trailing_start_bars:
+                self.trailing_active = True
+            if self.trailing_active:
+                trail_stop = self.highest_since_entry - self.entry_atr * self.p.trailing_atr_mult
+                current_stop = max(current_stop, trail_stop)
+
+            if self.data.close[0] <= current_stop:
                 self.order = self.close()
                 return
 
@@ -98,6 +137,10 @@ class CiticWaveStrategy(bt.Strategy):
         if not self._market_filter_passed():
             return
 
+        # O3: top filter — reject entries that have run too far above MA60
+        if self.data_stock.close[0] > self.ma_slow[0] * (1.0 + self.p.max_extension_pct):
+            return
+
         breakout_signal = (
             self.data_stock.close[0] >= self.highest_breakout[-1]
             and self.data_stock.volume[0] > self.vol_ma[0]
@@ -111,8 +154,14 @@ class CiticWaveStrategy(bt.Strategy):
             and self.data_stock.close[0] > self.ma_mid[0]
             and self.data_stock.volume[0] > self.vol_ma[0]
         )
+        # O2: bottom-fishing — KDJ J oversold + positive bar + volume spike
+        bottom_signal = (
+            self.j[0] < self.p.bottom_j_threshold
+            and self.data_stock.close[0] > self.data_stock.open[0]
+            and self.data_stock.volume[0] > self.vol_ma[0] * self.p.bottom_vol_mult
+        )
 
-        if breakout_signal or pullback_signal:
+        if breakout_signal or pullback_signal or bottom_signal:
             size = self._position_size()
             if size > 0:
                 self.order = self.buy(size=size)
@@ -121,7 +170,7 @@ class CiticWaveStrategy(bt.Strategy):
 CITIC_WAVE_STRATEGY_SPEC = StrategySpec(
     id='citic_wave',
     name='Citic Wave',
-    description='Market-filtered breakout and pullback swing strategy for CITIC Securities.',
+    description='Market-filtered breakout/pullback/bottom-fishing swing strategy for CITIC Securities. ATR stops with trailing exit.',
     strategy_class=CiticWaveStrategy,
     params=(
         StrategyParamSpec('market_ma_long', 'Market MA', 'int', 120),
@@ -130,9 +179,14 @@ CITIC_WAVE_STRATEGY_SPEC = StrategySpec(
         StrategyParamSpec('breakout_window', 'Breakout Window', 'int', 40),
         StrategyParamSpec('pullback_lookback', 'Pullback Window', 'int', 10),
         StrategyParamSpec('volume_ma', 'Volume MA', 'int', 20),
-        StrategyParamSpec('stop_loss_pct', 'Stop Loss %', 'float', 0.06),
+        StrategyParamSpec('bottom_j_threshold', 'Bottom J Threshold', 'int', 5),
+        StrategyParamSpec('bottom_vol_mult', 'Bottom Vol Mult', 'float', 2.0),
+        StrategyParamSpec('max_extension_pct', 'Max Extension %', 'float', 0.25),
+        StrategyParamSpec('stop_loss_pct', 'Stop Loss Floor', 'float', 0.06),
         StrategyParamSpec('atr_period', 'ATR Period', 'int', 14),
         StrategyParamSpec('atr_multiplier', 'ATR Multiple', 'float', 2.0),
+        StrategyParamSpec('trailing_atr_mult', 'Trailing ATR Mult', 'float', 2.0),
+        StrategyParamSpec('trailing_start_bars', 'Trailing Start Bars', 'int', 3),
         StrategyParamSpec('max_hold_days', 'Max Hold Days', 'int', 30),
         StrategyParamSpec('risk_percent', 'Risk Percent', 'float', 0.95),
     ),
