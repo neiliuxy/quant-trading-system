@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chart Layout Redesign</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      background: #f5f7fa;
+      color: #17202a;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 40px;
+      font-size: 28px;
+      color: #1f2a37;
+    }
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .layout-section {
+      background: #fff;
+      border: 1px solid #d9e1e8;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .layout-title {
+      background: #f4f6f8;
+      padding: 16px;
+      border-bottom: 1px solid #d9e1e8;
+      font-size: 16px;
+      font-weight: 600;
+      color: #1f2a37;
+    }
+    .layout-content {
+      padding: 20px;
+    }
+    .chart-mock {
+      background: #fafbfc;
+      border: 1px solid #e0e8f0;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 16px;
+      min-height: 300px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #627282;
+      font-size: 14px;
+    }
+    .chart-label {
+      font-size: 12px;
+      color: #627282;
+      margin-bottom: 6px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .control-btn {
+      padding: 6px 12px;
+      border: 1px solid #cbd5df;
+      border-radius: 4px;
+      background: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .control-btn:hover {
+      border-color: #2563eb;
+      color: #2563eb;
+      background: #f9fafb;
+    }
+    .control-btn.active {
+      background: #2563eb;
+      color: #fff;
+      border-color: #2563eb;
+    }
+    .feature-list {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #e0e8f0;
+    }
+    .feature-list h4 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      color: #405060;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .feature-item {
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: #627282;
+      display: flex;
+      gap: 8px;
+    }
+    .feature-item::before {
+      content: "✓";
+      color: #10b981;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .note {
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 4px;
+      padding: 12px;
+      margin-top: 16px;
+      font-size: 12px;
+      color: #92400e;
+      line-height: 1.5;
+    }
+    .indicator-tags {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .tag {
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+    }
+    @media (max-width: 1200px) {
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>📊 权益曲线图布局重新设计</h1>
+
+  <div class="comparison">
+    <!-- Current Layout -->
+    <div class="layout-section">
+      <div class="layout-title">❌ 现有布局</div>
+      <div class="layout-content">
+        <div class="chart-label">权益曲线 & 市场评分</div>
+        <div class="chart-mock">
+          <div>
+            📈 单一图表<br/>
+            <small>权益曲线 + 总评分/趋势/情绪/成交量评分</small>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="control-btn active">权益价值</button>
+          <button class="control-btn">总评分</button>
+          <button class="control-btn">趋势评分</button>
+          <button class="control-btn">情绪评分</button>
+          <button class="control-btn">成交量评分</button>
+        </div>
+
+        <div class="chart-label">K线图 & MA均线</div>
+        <div class="chart-mock">
+          <div>
+            🕯️ 单一K线图<br/>
+            <small>K线 + MA5/10/20/60</small>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="control-btn active">MA5</button>
+          <button class="control-btn active">MA10</button>
+          <button class="control-btn active">MA20</button>
+          <button class="control-btn active">MA60</button>
+        </div>
+
+        <div class="feature-list">
+          <h4>特点</h4>
+          <div class="feature-item">两个独立的图表部分</div>
+          <div class="feature-item">市场指标与价格走势分离</div>
+          <div class="feature-item">用户需在两处调整显示范围</div>
+        </div>
+
+        <div class="note">
+          <strong>问题：</strong>上证指数走势与市场指标、MA均线缺乏关联显示
+        </div>
+      </div>
+    </div>
+
+    <!-- Proposed Layout -->
+    <div class="layout-section">
+      <div class="layout-title">✅ 建议的新布局</div>
+      <div class="layout-content">
+        <div class="chart-label">上证指数走势</div>
+        <div class="chart-mock">
+          <div>
+            📊 上证指数 K线图<br/>
+            <small>+MA5, MA10, MA20, MA60</small>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="control-btn active">MA5</button>
+          <button class="control-btn active">MA10</button>
+          <button class="control-btn active">MA20</button>
+          <button class="control-btn active">MA60</button>
+        </div>
+
+        <div class="chart-label">技术指标（可切换）</div>
+        <div class="chart-mock">
+          <div>
+            📉 选中的指标<br/>
+            <small>显示对应上证指数区间的指标数据</small>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="control-btn active">MACD</button>
+          <button class="control-btn">KDJ</button>
+          <button class="control-btn">成交量</button>
+          <button class="control-btn">成交额</button>
+          <button class="control-btn">量价比</button>
+        </div>
+
+        <div class="indicator-tags">
+          <span class="tag">指标选择示例</span>
+        </div>
+
+        <div class="feature-list">
+          <h4>优势</h4>
+          <div class="feature-item">上证指数作为参考标尺</div>
+          <div class="feature-item">一次调整范围同时影响上下两图</div>
+          <div class="feature-item">技术指标可灵活切换</div>
+          <div class="feature-item">用户可清晰对比策略与市场走势</div>
+        </div>
+
+        <div class="note">
+          <strong>实现要点：</strong>保留权益曲线在单独的图表中，不与上证指数混合显示
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
