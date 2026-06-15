@@ -24,6 +24,12 @@ import { calcMA, calcBoll, calcMacd, calcKdj } from './indicators';
 import { filterByDateRange } from './charts/filterByDateRange';
 import { EquityPanel } from './panels/EquityPanel';
 import type { LineVisibility } from './panels/EquityPanel';
+import { StockIndicatorPanel } from './panels/StockIndicatorPanel';
+import type { IndicatorKey } from './panels/StockIndicatorPanel';
+import { IndexIndicatorPanel } from './panels/IndexIndicatorPanel';
+import { StockKlinePanel } from './panels/StockKlinePanel';
+import type { MaVisibility } from './panels/StockKlinePanel';
+import { IndexKlinePanel } from './panels/IndexKlinePanel';
 
 const defaultForm: BacktestFormValues = {
   symbol: '000001',
@@ -126,22 +132,6 @@ function sameJob(lhs: Job | null, rhs: Job | null): boolean {
     lhs.error === rhs.error &&
     lhs.cache_hit === rhs.cache_hit
   );
-}
-
-interface MaVisibility {
-  ma5: boolean;
-  ma10: boolean;
-  ma20: boolean;
-  ma60: boolean;
-  boll: boolean;
-}
-
-interface IndexMaVisibility {
-  ma5: boolean;
-  ma10: boolean;
-  ma20: boolean;
-  ma60: boolean;
-  boll: boolean;
 }
 
 export default function App() {
@@ -685,342 +675,42 @@ export default function App() {
 
             {result?.price_data?.length > 0 && (
               <>
-              <section className="panel">
-                <div className="chart-header">
-                  <h3>回测股票 K 线 + MA + BOLL</h3>
-                </div>
-
-                <div className="line-toggles">
-                  {(['ma5', 'ma10', 'ma20', 'ma60', 'boll'] as const).map((key) => (
-                    <button
-                      key={key}
-                      className={`toggle-btn ${maVisibility[key] ? 'active' : ''}`}
-                      onClick={() => toggleMaVisibility(key)}
-                    >
-                      {maVisibility[key] ? <Eye size={14} /> : <EyeOff size={14} />}
-                      {key === 'boll' ? 'BOLL' : key.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-
-              <ChartDateRangeControl
-                value={chartDateRange}
+              <StockKlinePanel
+                data={priceDataWithMA}
+                maVisibility={maVisibility}
+                onToggleMa={toggleMaVisibility}
+                chartDateRange={chartDateRange}
+                onChangeDateRange={setChartDateRange}
                 defaultStart={selectedJob?.start_date || ''}
                 defaultEnd={selectedJob?.end_date || ''}
-                onChange={setChartDateRange}
               />
-
-                <div className="chart-container">
-                  <ResponsiveContainer width="100%" height={400}>
-                    <ComposedChart data={filteredPriceData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" minTickGap={32} />
-                      <YAxis domain={[0, 'auto']} />
-                      <Tooltip
-                        formatter={(value: any, name: string) => {
-                          if (name === 'MA5') return [value?.toFixed(2), 'MA5'];
-                          if (name === 'MA10') return [value?.toFixed(2), 'MA10'];
-                          if (name === 'MA20') return [value?.toFixed(2), 'MA20'];
-                          if (name === 'MA60') return [value?.toFixed(2), 'MA60'];
-                          if (typeof value === 'number') return [value.toFixed(2), name];
-                          return [value, name];
-                        }}
-                        labelFormatter={(label: string) => {
-                          const point = filteredPriceDataMap.get(label);
-                          if (!point) return label;
-                          return `${label} | O:${point.open?.toFixed(2)} H:${point.high?.toFixed(2)} L:${point.low?.toFixed(2)} C:${point.close?.toFixed(2)}`;
-                        }}
-                      />
-                      <Legend />
-                      <Bar
-                        dataKey="close"
-                        shape={CandleShape}
-                        isAnimationActive={false}
-                        legendType="none"
-                      />
-                      {maVisibility.ma5 && (
-                        <Line
-                          type="monotone"
-                          dataKey="ma5"
-                          stroke="#ef4444"
-                          dot={false}
-                          strokeWidth={1.5}
-                          name="MA5"
-                          isAnimationActive={false}
-                          connectNulls={false}
-                        />
-                      )}
-                      {maVisibility.ma10 && (
-                        <Line
-                          type="monotone"
-                          dataKey="ma10"
-                          stroke="#f59e0b"
-                          dot={false}
-                          strokeWidth={1.5}
-                          name="MA10"
-                          isAnimationActive={false}
-                          connectNulls={false}
-                        />
-                      )}
-                      {maVisibility.ma20 && (
-                        <Line
-                          type="monotone"
-                          dataKey="ma20"
-                          stroke="#2563eb"
-                          dot={false}
-                          strokeWidth={1.5}
-                          name="MA20"
-                          isAnimationActive={false}
-                          connectNulls={false}
-                        />
-                      )}
-                      {maVisibility.ma60 && (
-                        <Line
-                          type="monotone"
-                          dataKey="ma60"
-                          stroke="#7c3aed"
-                          dot={false}
-                          strokeWidth={1.5}
-                          name="MA60"
-                          isAnimationActive={false}
-                          connectNulls={false}
-                        />
-                      )}
-                      {maVisibility.boll && (
-                        <>
-                          <Line type="monotone" dataKey="boll_upper" stroke="#a855f7" dot={false} strokeWidth={1} name="BOLL 上轨" isAnimationActive={false} connectNulls={false} />
-                          <Line type="monotone" dataKey="boll_mid" stroke="#eab308" dot={false} strokeWidth={1.2} name="BOLL 中轨" isAnimationActive={false} connectNulls={false} />
-                          <Line type="monotone" dataKey="boll_lower" stroke="#a855f7" dot={false} strokeWidth={1} name="BOLL 下轨" isAnimationActive={false} connectNulls={false} />
-                        </>
-                      )}
-                      {klineBuyPoints.map((point) => (
-                        <ReferenceDot
-                          key={`kline-buy-${point.date}`}
-                          x={point.date}
-                          y={point.low}
-                          shape={BuyMarker}
-                          ifOverflow="extendDomain"
-                        />
-                      ))}
-                      {klineSellPoints.map((point) => (
-                        <ReferenceDot
-                          key={`kline-sell-${point.date}`}
-                          x={point.date}
-                          y={point.high}
-                          shape={SellMarker}
-                          ifOverflow="extendDomain"
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="trade-legend">
-                  <div className="trade-legend-item">
-                    <div className="trade-legend-dot buy"></div>
-                    <span>买入点</span>
-                  </div>
-                  <div className="trade-legend-item">
-                    <div className="trade-legend-dot sell"></div>
-                    <span>卖出点</span>
-                  </div>
-                </div>
-              </section>
-              <section className="panel">
-                <div className="chart-header">
-                  <h3>回测股票技术指标</h3>
-                  <select
-                    value={stockSelectedIndicator}
-                    onChange={(e) => setStockSelectedIndicator(e.target.value as IndicatorKey)}
-                    style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5df', background: '#fff' }}
-                  >
-                    <option value="macd">MACD</option>
-                    <option value="kdj">KDJ</option>
-                    <option value="volume">Volume</option>
-                    <option value="amount">Amount (100M CNY)</option>
-                  </select>
-                </div>
-
-                <div className="chart-container">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <ComposedChart data={filteredStockIndicatorData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" minTickGap={32} />
-                      <YAxis domain={['auto', 'auto']} />
-                      <Tooltip />
-                      {stockSelectedIndicator === 'macd' && (
-                        <>
-                          <Bar dataKey="macd" isAnimationActive={false} name="MACD">
-                            {filteredStockIndicatorData.map((entry, i) => (
-                              <Cell key={`stock-m-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
-                            ))}
-                          </Bar>
-                          <Line type="monotone" dataKey="dif" stroke="#facc15" dot={false} strokeWidth={1.4} name="DIF" isAnimationActive={false} connectNulls={false} />
-                          <Line type="monotone" dataKey="dea" stroke="#f97316" dot={false} strokeWidth={1.4} name="DEA" isAnimationActive={false} connectNulls={false} />
-                        </>
-                      )}
-                      {stockSelectedIndicator === 'kdj' && (
-                        <>
-                          <Line type="monotone" dataKey="k" stroke="#f3f4f6" dot={false} strokeWidth={1.4} name="K" isAnimationActive={false} connectNulls={false} />
-                          <Line type="monotone" dataKey="d" stroke="#facc15" dot={false} strokeWidth={1.4} name="D" isAnimationActive={false} connectNulls={false} />
-                          <Line type="monotone" dataKey="j" stroke="#a855f7" dot={false} strokeWidth={1.4} name="J" isAnimationActive={false} connectNulls={false} />
-                          <ReferenceLine y={80} stroke="#9ca3af" strokeDasharray="2 2" />
-                          <ReferenceLine y={20} stroke="#9ca3af" strokeDasharray="2 2" />
-                        </>
-                      )}
-                      {stockSelectedIndicator === 'volume' && (
-                        <Bar dataKey="value" isAnimationActive={false} name="Volume">
-                          {filteredStockIndicatorData.map((entry, i) => (
-                            <Cell key={`stock-v-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
-                          ))}
-                        </Bar>
-                      )}
-                      {stockSelectedIndicator === 'amount' && (
-                        <Bar dataKey="value" isAnimationActive={false} name="Amount">
-                          {filteredStockIndicatorData.map((entry, i) => (
-                            <Cell key={`stock-a-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
-                          ))}
-                        </Bar>
-                      )}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              </section>
+              <StockIndicatorPanel
+                data={stockIndicatorData}
+                selected={stockSelectedIndicator}
+                onChangeSelected={setStockSelectedIndicator}
+                chartDateRange={chartDateRange}
+              />
               </>
             )}
 
             {result && (
               (result.index_data?.length ?? 0) > 0 ? (
                 <>
-                <section className="panel">
-                  <div className="chart-header">
-                    <h3>上证指数 K 线 + MA + BOLL</h3>
-                  </div>
-
-                <div className="line-toggles">
-                  {(['ma5', 'ma10', 'ma20', 'ma60', 'boll'] as const).map((key) => (
-                    <button
-                      key={key}
-                      className={`toggle-btn ${indexMaVisibility[key] ? 'active' : ''}`}
-                      onClick={() => toggleIndexMa(key)}
-                    >
-                      {indexMaVisibility[key] ? <Eye size={14} /> : <EyeOff size={14} />}
-                      {key === 'boll' ? 'BOLL' : key.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-
-              <ChartDateRangeControl
-                value={chartDateRange}
-                defaultStart={selectedJob?.start_date || ''}
-                defaultEnd={selectedJob?.end_date || ''}
-                onChange={setChartDateRange}
-              />
-
-                <div className="chart-container">
-                  <ResponsiveContainer width="100%" height={400}>
-                    <ComposedChart data={filteredIndexData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" minTickGap={32} />
-                      <YAxis domain={['auto', 'auto']} />
-                      <Tooltip
-                        formatter={(value: any, name: string) => {
-                          if (value == null) return ['--', name];
-                          if (typeof value === 'number') return [value.toFixed(2), name];
-                          return [value, name];
-                        }}
-                        labelFormatter={(label: string) => {
-                          const point = filteredIndexDataMap.get(label);
-                          if (!point) return label;
-                          return `${label} | O:${point.open.toFixed(2)} H:${point.high.toFixed(2)} L:${point.low.toFixed(2)} C:${point.close.toFixed(2)}`;
-                        }}
-                      />
-                      <Legend />
-                      <Bar dataKey="close" shape={CandleShape} isAnimationActive={false} legendType="none" />
-                      {indexMaVisibility.ma5 && (
-                        <Line type="monotone" dataKey="ma5" stroke="#ef4444" dot={false} strokeWidth={1.5} name="MA5" isAnimationActive={false} connectNulls={false} />
-                      )}
-                      {indexMaVisibility.ma10 && (
-                        <Line type="monotone" dataKey="ma10" stroke="#f59e0b" dot={false} strokeWidth={1.5} name="MA10" isAnimationActive={false} connectNulls={false} />
-                      )}
-                      {indexMaVisibility.ma20 && (
-                        <Line type="monotone" dataKey="ma20" stroke="#2563eb" dot={false} strokeWidth={1.5} name="MA20" isAnimationActive={false} connectNulls={false} />
-                      )}
-                      {indexMaVisibility.ma60 && (
-                        <Line type="monotone" dataKey="ma60" stroke="#7c3aed" dot={false} strokeWidth={1.5} name="MA60" isAnimationActive={false} connectNulls={false} />
-                      )}
-                      {indexMaVisibility.boll && (
-                        <>
-                          <Line type="monotone" dataKey="boll_upper" stroke="#a855f7" dot={false} strokeWidth={1} name="BOLL上轨" isAnimationActive={false} connectNulls={false} />
-                          <Line type="monotone" dataKey="boll_mid" stroke="#eab308" dot={false} strokeWidth={1.2} name="BOLL中轨" isAnimationActive={false} connectNulls={false} />
-                          <Line type="monotone" dataKey="boll_lower" stroke="#a855f7" dot={false} strokeWidth={1} name="BOLL下轨" isAnimationActive={false} connectNulls={false} />
-                        </>
-                      )}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              </section>
-
-              <section className="panel">
-                <div className="chart-header">
-                  <h3>上证指数技术指标</h3>
-                  <select
-                    value={selectedIndicator}
-                    onChange={(e) => setSelectedIndicator(e.target.value as IndicatorKey)}
-                    style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5df', background: '#fff' }}
-                  >
-                    <option value="macd">MACD</option>
-                    <option value="kdj">KDJ</option>
-                    <option value="volume">Volume</option>
-                    <option value="amount">Amount (100M CNY)</option>
-                  </select>
-                </div>
-
-                <div className="chart-container">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <ComposedChart data={filteredIndicatorData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" minTickGap={32} />
-                      <YAxis domain={['auto', 'auto']} />
-                      <Tooltip />
-                      {selectedIndicator === 'macd' && (
-                        <>
-                          <Bar dataKey="macd" isAnimationActive={false} name="MACD">
-                            {filteredIndicatorData.map((entry, i) => (
-                              <Cell key={`m-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
-                            ))}
-                          </Bar>
-                          <Line type="monotone" dataKey="dif" stroke="#facc15" dot={false} strokeWidth={1.4} name="DIF" isAnimationActive={false} connectNulls={false} />
-                          <Line type="monotone" dataKey="dea" stroke="#f97316" dot={false} strokeWidth={1.4} name="DEA" isAnimationActive={false} connectNulls={false} />
-                        </>
-                      )}
-                      {selectedIndicator === 'kdj' && (
-                        <>
-                          <Line type="monotone" dataKey="k" stroke="#f3f4f6" dot={false} strokeWidth={1.4} name="K" isAnimationActive={false} connectNulls={false} />
-                          <Line type="monotone" dataKey="d" stroke="#facc15" dot={false} strokeWidth={1.4} name="D" isAnimationActive={false} connectNulls={false} />
-                          <Line type="monotone" dataKey="j" stroke="#a855f7" dot={false} strokeWidth={1.4} name="J" isAnimationActive={false} connectNulls={false} />
-                          <ReferenceLine y={80} stroke="#9ca3af" strokeDasharray="2 2" />
-                          <ReferenceLine y={20} stroke="#9ca3af" strokeDasharray="2 2" />
-                        </>
-                      )}
-                      {selectedIndicator === 'volume' && (
-                        <Bar dataKey="value" isAnimationActive={false} name="Volume">
-                          {filteredIndicatorData.map((entry, i) => (
-                            <Cell key={`v-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
-                          ))}
-                        </Bar>
-                      )}
-                      {selectedIndicator === 'amount' && (
-                        <Bar dataKey="value" isAnimationActive={false} name="Amount">
-                          {filteredIndicatorData.map((entry, i) => (
-                            <Cell key={`a-${i}`} fill={entry.isUp ? '#ef4444' : '#22c55e'} />
-                          ))}
-                        </Bar>
-                      )}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              </section>
+                <IndexKlinePanel
+                  data={indexDataWithMA}
+                  maVisibility={indexMaVisibility}
+                  onToggleMa={toggleIndexMa}
+                  chartDateRange={chartDateRange}
+                  onChangeDateRange={setChartDateRange}
+                  defaultStart={selectedJob?.start_date || ''}
+                  defaultEnd={selectedJob?.end_date || ''}
+                />
+                <IndexIndicatorPanel
+                  data={indexIndicatorData}
+                  selected={selectedIndicator}
+                  onChangeSelected={setSelectedIndicator}
+                  chartDateRange={chartDateRange}
+                />
               </>
               ) : (
                 <section className="panel">
