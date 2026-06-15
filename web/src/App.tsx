@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { Activity, BookOpen, Play, RefreshCcw, ZoomIn, ZoomOut, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { Activity, BookOpen, Play, RefreshCcw, Eye, EyeOff, Trash2 } from 'lucide-react';
 import {
   Bar,
   CartesianGrid,
@@ -22,6 +22,8 @@ import RunForm from './RunForm';
 import StrategyGuide from './StrategyGuide';
 import { calcMA, calcBoll, calcMacd, calcKdj } from './indicators';
 import { filterByDateRange } from './charts/filterByDateRange';
+import { EquityPanel } from './panels/EquityPanel';
+import type { LineVisibility } from './panels/EquityPanel';
 
 const defaultForm: BacktestFormValues = {
   symbol: '000001',
@@ -98,30 +100,6 @@ function CandleShape(props: any) {
   );
 }
 
-function BuyMarker(props: any) {
-  const { cx, cy } = props;
-  if (cx == null || cy == null) return null;
-  const size = 6;
-  const points = [
-    `${cx},${cy - size}`,
-    `${cx - size},${cy + size}`,
-    `${cx + size},${cy + size}`,
-  ].join(' ');
-  return <polygon points={points} fill="#22c55e" stroke="#15803d" strokeWidth={1} />;
-}
-
-function SellMarker(props: any) {
-  const { cx, cy } = props;
-  if (cx == null || cy == null) return null;
-  const size = 6;
-  const points = [
-    `${cx},${cy + size}`,
-    `${cx - size},${cy - size}`,
-    `${cx + size},${cy - size}`,
-  ].join(' ');
-  return <polygon points={points} fill="#ef4444" stroke="#b91c1c" strokeWidth={1} />;
-}
-
 function buildTradeMarkerMap(trades: Array<{ date: string }>): Map<string, { buy?: boolean; sell?: boolean }> {
   const map = new Map<string, { buy?: boolean; sell?: boolean }>();
   trades.forEach((trade, index) => {
@@ -150,14 +128,6 @@ function sameJob(lhs: Job | null, rhs: Job | null): boolean {
   );
 }
 
-interface LineVisibility {
-  equity: boolean;
-  totalScore: boolean;
-  trendScore: boolean;
-  sentimentScore: boolean;
-  volumeScore: boolean;
-}
-
 interface MaVisibility {
   ma5: boolean;
   ma10: boolean;
@@ -184,7 +154,6 @@ export default function App() {
   const [strategies, setStrategies] = useState<StrategySpec[]>([]);
   const [comparisonJob, setComparisonJob] = useState<Job | null>(null);
   const [comparisonResult, setComparisonResult] = useState<BacktestResult | null>(null);
-  const [zoom, setZoom] = useState({ start: 0, end: 100 });
   const [lineVisibility, setLineVisibility] = useState<LineVisibility>({
     equity: true,
     totalScore: true,
@@ -212,8 +181,6 @@ export default function App() {
   type IndicatorKey = 'macd' | 'kdj' | 'volume' | 'amount';
   const [stockSelectedIndicator, setStockSelectedIndicator] = useState<IndicatorKey>('macd');
   const [selectedIndicator, setSelectedIndicator] = useState<IndicatorKey>('macd');
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState(0);
   const [chartDateRange, setChartDateRange] = useState<{ start: string; end: string } | null>(null);
   const [deleteConfirmJobId, setDeleteConfirmJobId] = useState<number | null>(null);
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
@@ -354,13 +321,8 @@ export default function App() {
 
   const filteredData = useMemo(() => {
     if (!mergedData.length) return [];
-    if (chartDateRange?.start && chartDateRange?.end) {
-      return filterByDateRange(mergedData, chartDateRange);
-    }
-    const start = Math.floor((mergedData.length * zoom.start) / 100);
-    const end = Math.ceil((mergedData.length * zoom.end) / 100);
-    return mergedData.slice(start, end);
-  }, [mergedData, zoom, chartDateRange]);
+    return filterByDateRange(mergedData, chartDateRange);
+  }, [mergedData, chartDateRange]);
 
   const priceDataWithMA = useMemo(() => {
     if (!result?.price_data?.length) return [];
@@ -508,8 +470,6 @@ export default function App() {
     return filterByDateRange(indexIndicatorData, chartDateRange);
   }, [indexIndicatorData, chartDateRange]);
 
-  const equityBuyPoints = useMemo(() => filteredData.filter(p => p.buy), [filteredData]);
-  const equitySellPoints = useMemo(() => filteredData.filter(p => p.sell), [filteredData]);
   const klineBuyPoints = useMemo(() => filteredPriceData.filter(p => p.buy), [filteredPriceData]);
   const klineSellPoints = useMemo(() => filteredPriceData.filter(p => p.sell), [filteredPriceData]);
   const filteredPriceDataMap = useMemo(
@@ -520,37 +480,6 @@ export default function App() {
     () => new Map(filteredIndexData.map(d => [d.date, d])),
     [filteredIndexData]
   );
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true);
-    setDragStart(e.clientX);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const delta = e.clientX - dragStart;
-    const range = zoom.end - zoom.start;
-    const movePercent = (delta / 800) * 100; // 800px is approximate chart width
-
-    let newStart = zoom.start - movePercent;
-    let newEnd = zoom.end - movePercent;
-
-    if (newStart < 0) {
-      newStart = 0;
-      newEnd = range;
-    }
-    if (newEnd > 100) {
-      newEnd = 100;
-      newStart = 100 - range;
-    }
-
-    setZoom({ start: newStart, end: newEnd });
-    setDragStart(e.clientX);
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
 
   const submit = useMemo(
     () => async (form: BacktestFormValues, force = false) => {
@@ -744,192 +673,15 @@ export default function App() {
               </section>
             )}
 
-            <section className="panel">
-              <div className="chart-header">
-                <h3>权益曲线 & 市场评分</h3>
-                <div className="zoom-controls">
-                  <button
-                    className="zoom-btn"
-                    onClick={() => setZoom({ start: Math.max(0, zoom.start - 10), end: Math.min(100, zoom.end + 10) })}
-                    title="缩小（显示更多数据）"
-                  >
-                    <ZoomOut size={16} /> 缩小
-                  </button>
-                  <button
-                    className="zoom-btn"
-                    onClick={() => setZoom({ start: Math.min(50, zoom.start + 10), end: Math.max(50, zoom.end - 10) })}
-                    title="放大（显示更少数据）"
-                  >
-                    <ZoomIn size={16} /> 放大
-                  </button>
-                  <button
-                    className="zoom-btn"
-                    onClick={() => setZoom({ start: 0, end: 100 })}
-                    title="重置"
-                  >
-                    重置
-                  </button>
-                </div>
-              </div>
-
-              <div className="line-toggles">
-                <button
-                  className={`toggle-btn ${lineVisibility.equity ? 'active' : ''}`}
-                  onClick={() => toggleLineVisibility('equity')}
-                  title="Toggle equity curve"
-                >
-                  {lineVisibility.equity ? <Eye size={14} /> : <EyeOff size={14} />}
-                  权益净值
-                </button>
-                <button
-                  className={`toggle-btn ${lineVisibility.totalScore ? 'active' : ''}`}
-                  onClick={() => toggleLineVisibility('totalScore')}
-                  title="Toggle total score"
-                >
-                  {lineVisibility.totalScore ? <Eye size={14} /> : <EyeOff size={14} />}
-                  总评分
-                </button>
-                <button
-                  className={`toggle-btn ${lineVisibility.trendScore ? 'active' : ''}`}
-                  onClick={() => toggleLineVisibility('trendScore')}
-                  title="Toggle trend score"
-                >
-                  {lineVisibility.trendScore ? <Eye size={14} /> : <EyeOff size={14} />}
-                  趋势评分
-                </button>
-                <button
-                  className={`toggle-btn ${lineVisibility.sentimentScore ? 'active' : ''}`}
-                  onClick={() => toggleLineVisibility('sentimentScore')}
-                  title="Toggle sentiment score"
-                >
-                  {lineVisibility.sentimentScore ? <Eye size={14} /> : <EyeOff size={14} />}
-                  情绪评分
-                </button>
-                <button
-                  className={`toggle-btn ${lineVisibility.volumeScore ? 'active' : ''}`}
-                  onClick={() => toggleLineVisibility('volumeScore')}
-                  title="Toggle volume score"
-                >
-                  {lineVisibility.volumeScore ? <Eye size={14} /> : <EyeOff size={14} />}
-                  成交量评分
-                </button>
-              </div>
-
-              <ChartDateRangeControl
-                value={chartDateRange}
-                defaultStart={selectedJob?.start_date || ''}
-                defaultEnd={selectedJob?.end_date || ''}
-                onChange={setChartDateRange}
-              />
-
-              <div
-                className="chart-container"
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-                style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
-              >
-                <ResponsiveContainer width="100%" height={400}>
-                  <LineChart data={filteredData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" minTickGap={32} />
-                    <YAxis yAxisId="left" domain={['auto', 'auto']} />
-                    <YAxis yAxisId="right" orientation="right" domain={[0, 1]} />
-                    <Tooltip />
-                    <Legend />
-                    {lineVisibility.equity && (
-                      <Line
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="value"
-                        stroke="#2563eb"
-                        dot={false}
-                        strokeWidth={2}
-                        name="权益净值"
-                        isAnimationActive={false}
-                      />
-                    )}
-                    {lineVisibility.totalScore && (
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="total_score"
-                        stroke="#0f766e"
-                        dot={false}
-                        strokeWidth={2}
-                        name="总评分"
-                        isAnimationActive={false}
-                      />
-                    )}
-                    {lineVisibility.trendScore && (
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="trend_score"
-                        stroke="#f59e0b"
-                        dot={false}
-                        name="趋势评分"
-                        isAnimationActive={false}
-                      />
-                    )}
-                    {lineVisibility.sentimentScore && (
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="sentiment_score"
-                        stroke="#7c3aed"
-                        dot={false}
-                        name="情绪评分"
-                        isAnimationActive={false}
-                      />
-                    )}
-                    {lineVisibility.volumeScore && (
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="volume_score"
-                        stroke="#dc2626"
-                        dot={false}
-                        name="成交量评分"
-                        isAnimationActive={false}
-                      />
-                    )}
-                    {equityBuyPoints.map((point) => (
-                      <ReferenceDot
-                        key={`buy-${point.date}`}
-                        x={point.date}
-                        y={point.value}
-                        yAxisId="left"
-                        shape={BuyMarker}
-                        ifOverflow="extendDomain"
-                      />
-                    ))}
-                    {equitySellPoints.map((point) => (
-                      <ReferenceDot
-                        key={`sell-${point.date}`}
-                        x={point.date}
-                        y={point.value}
-                        yAxisId="left"
-                        shape={SellMarker}
-                        ifOverflow="extendDomain"
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="chart-hint">提示：拖动图表左右查看相邻时间段数据。</p>
-              <div className="trade-legend">
-                <div className="trade-legend-item">
-                  <div className="trade-legend-dot buy"></div>
-                  <span>买入点</span>
-                </div>
-                <div className="trade-legend-item">
-                  <div className="trade-legend-dot sell"></div>
-                  <span>卖出点</span>
-                </div>
-              </div>
-            </section>
+            <EquityPanel
+              data={mergedData}
+              chartDateRange={chartDateRange}
+              onChangeDateRange={setChartDateRange}
+              defaultStart={selectedJob?.start_date || ''}
+              defaultEnd={selectedJob?.end_date || ''}
+              lineVisibility={lineVisibility}
+              onToggleLine={toggleLineVisibility}
+            />
 
             {result?.price_data?.length > 0 && (
               <>
