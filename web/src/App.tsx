@@ -21,6 +21,7 @@ import ChartDateRangeControl from './ChartDateRangeControl';
 import RunForm from './RunForm';
 import StrategyGuide from './StrategyGuide';
 import { calcMA, calcBoll, calcMacd, calcKdj } from './indicators';
+import { filterByDateRange } from './charts/filterByDateRange';
 
 const defaultForm: BacktestFormValues = {
   symbol: '000001',
@@ -353,20 +354,12 @@ export default function App() {
 
   const filteredData = useMemo(() => {
     if (!mergedData.length) return [];
-
-    let data = mergedData;
-
-    // Filter by chart date range if set
     if (chartDateRange?.start && chartDateRange?.end) {
-      data = data.filter(d => d.date >= chartDateRange.start && d.date <= chartDateRange.end);
-    } else {
-      // Otherwise use zoom percentage
-      const start = Math.floor((mergedData.length * zoom.start) / 100);
-      const end = Math.ceil((mergedData.length * zoom.end) / 100);
-      data = mergedData.slice(start, end);
+      return filterByDateRange(mergedData, chartDateRange);
     }
-
-    return data;
+    const start = Math.floor((mergedData.length * zoom.start) / 100);
+    const end = Math.ceil((mergedData.length * zoom.end) / 100);
+    return mergedData.slice(start, end);
   }, [mergedData, zoom, chartDateRange]);
 
   const priceDataWithMA = useMemo(() => {
@@ -398,15 +391,7 @@ export default function App() {
 
   const filteredPriceData = useMemo(() => {
     if (!priceDataWithMA.length) return [];
-
-    let data = priceDataWithMA;
-
-    // Apply same date range filter as equity curve
-    if (chartDateRange?.start && chartDateRange?.end) {
-      data = data.filter(d => d.date >= chartDateRange.start && d.date <= chartDateRange.end);
-    }
-
-    return data;
+    return filterByDateRange(priceDataWithMA, chartDateRange);
   }, [priceDataWithMA, chartDateRange]);
 
   const stockIndicatorData = useMemo(() => {
@@ -450,12 +435,7 @@ export default function App() {
 
   const filteredStockIndicatorData = useMemo(() => {
     if (!stockIndicatorData.length) return [];
-    if (chartDateRange?.start && chartDateRange?.end) {
-      return stockIndicatorData.filter(
-        (d) => d.date >= chartDateRange.start && d.date <= chartDateRange.end
-      );
-    }
-    return stockIndicatorData;
+    return filterByDateRange(stockIndicatorData, chartDateRange);
   }, [stockIndicatorData, chartDateRange]);
 
   const indexDataWithMA = useMemo(() => {
@@ -480,11 +460,7 @@ export default function App() {
 
   const filteredIndexData = useMemo(() => {
     if (!indexDataWithMA.length) return [];
-    let data = indexDataWithMA;
-    if (chartDateRange?.start && chartDateRange?.end) {
-      data = data.filter((d) => d.date >= chartDateRange.start && d.date <= chartDateRange.end);
-    }
-    return data;
+    return filterByDateRange(indexDataWithMA, chartDateRange);
   }, [indexDataWithMA, chartDateRange]);
 
   const indexIndicatorData = useMemo(() => {
@@ -529,12 +505,7 @@ export default function App() {
 
   const filteredIndicatorData = useMemo(() => {
     if (!indexIndicatorData.length) return [];
-    if (chartDateRange?.start && chartDateRange?.end) {
-      return indexIndicatorData.filter(
-        (d) => d.date >= chartDateRange.start && d.date <= chartDateRange.end
-      );
-    }
-    return indexIndicatorData;
+    return filterByDateRange(indexIndicatorData, chartDateRange);
   }, [indexIndicatorData, chartDateRange]);
 
   const equityBuyPoints = useMemo(() => filteredData.filter(p => p.buy), [filteredData]);
