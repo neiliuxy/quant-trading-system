@@ -676,7 +676,8 @@ export default function App() {
             {result?.price_data?.length > 0 && (
               <>
               <StockKlinePanel
-                data={priceDataWithMA}
+                data={result?.price_data ?? []}
+                trades={result?.trades}
                 maVisibility={maVisibility}
                 onToggleMa={toggleMaVisibility}
                 chartDateRange={chartDateRange}
@@ -697,7 +698,7 @@ export default function App() {
               (result.index_data?.length ?? 0) > 0 ? (
                 <>
                 <IndexKlinePanel
-                  data={indexDataWithMA}
+                  data={result?.index_data ?? []}
                   maVisibility={indexMaVisibility}
                   onToggleMa={toggleIndexMa}
                   chartDateRange={chartDateRange}
