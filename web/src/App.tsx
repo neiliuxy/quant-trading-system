@@ -1,20 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { Activity, BookOpen, Play, RefreshCcw, Eye, EyeOff, Trash2 } from 'lucide-react';
-import {
-  Bar,
-  CartesianGrid,
-  Cell,
-  ComposedChart,
-  Legend,
-  Line,
-  LineChart,
-  ReferenceDot,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Activity, BookOpen, Play, RefreshCcw, Trash2 } from 'lucide-react';
 import { createJob, createMarketFilterComparison, deleteJob, deleteAllJobs, getJob, getResult, getStocks, listJobs, listStrategies } from './api';
 import type { BacktestFormValues, BacktestResult, Job, StrategySpec } from './types';
 import ChartDateRangeControl from './ChartDateRangeControl';
@@ -22,6 +7,7 @@ import RunForm from './RunForm';
 import StrategyGuide from './StrategyGuide';
 import { calcMA, calcBoll, calcMacd, calcKdj } from './indicators';
 import { filterByDateRange } from './charts/filterByDateRange';
+import { buildKlineSeries } from './charts/buildSeries';
 import { EquityPanel } from './panels/EquityPanel';
 import type { LineVisibility } from './panels/EquityPanel';
 import { StockIndicatorPanel } from './panels/StockIndicatorPanel';
@@ -68,42 +54,6 @@ const statusLabels: Record<string, string> = {
 
 function StatusBadge({ status }: { status: string }) {
   return <span className={`status status-${status}`}>{statusLabels[status] || status}</span>;
-}
-
-function CandleShape(props: any) {
-  const { x, y, width, height, payload } = props;
-  const { open, high, low, close } = payload;
-  if (open === undefined || close === 0) return null;
-
-  const isUp = close >= open;
-  const color = isUp ? '#ef4444' : '#22c55e';
-  const cx = x + width / 2;
-
-  // y = top of bar (close price pixel), y + height = baseline (0 price pixel)
-  // pixels per price unit = height / close
-  const pxPerUnit = height / close;
-
-  const highY = y + height - high * pxPerUnit;
-  const lowY = y + height - low * pxPerUnit;
-  const openY = y + height - open * pxPerUnit;
-  const closeY = y + height - close * pxPerUnit;
-  const bodyTop = Math.min(openY, closeY);
-  const bodyBottom = Math.max(openY, closeY);
-
-  return (
-    <g>
-      <line x1={cx} y1={highY} x2={cx} y2={lowY} stroke={color} strokeWidth={1} />
-      <rect
-        x={x + 1}
-        y={bodyTop}
-        width={width - 2}
-        height={Math.max(1, bodyBottom - bodyTop)}
-        fill={isUp ? color : 'transparent'}
-        stroke={color}
-        strokeWidth={1}
-      />
-    </g>
-  );
 }
 
 function buildTradeMarkerMap(trades: Array<{ date: string }>): Map<string, { buy?: boolean; sell?: boolean }> {
@@ -314,37 +264,10 @@ export default function App() {
     return filterByDateRange(mergedData, chartDateRange);
   }, [mergedData, chartDateRange]);
 
-  const priceDataWithMA = useMemo(() => {
-    if (!result?.price_data?.length) return [];
-
-    const data = result.price_data;
-    const closes = data.map((d) => d.close);
-    const ma5 = calcMA(closes, 5);
-    const ma10 = calcMA(closes, 10);
-    const ma20 = calcMA(closes, 20);
-    const ma60 = calcMA(closes, 60);
-    const boll = calcBoll(closes, 20, 2.0);
-
-    // Build trade markers
-    const tradeMap = buildTradeMarkerMap(result.trades);
-
-    return data.map((d, i) => ({
-      ...d,
-      ma5: ma5[i],
-      ma10: ma10[i],
-      ma20: ma20[i],
-      ma60: ma60[i],
-      boll_upper: boll.upper[i],
-      boll_mid: boll.mid[i],
-      boll_lower: boll.lower[i],
-      ...tradeMap.get(d.date),
-    }));
-  }, [result]);
-
-  const filteredPriceData = useMemo(() => {
-    if (!priceDataWithMA.length) return [];
-    return filterByDateRange(priceDataWithMA, chartDateRange);
-  }, [priceDataWithMA, chartDateRange]);
+  const priceDataWithMA = useMemo(
+    () => buildKlineSeries(result?.price_data ?? []),
+    [result]
+  );
 
   const stockIndicatorData = useMemo(() => {
     if (!priceDataWithMA.length) return [];
@@ -385,35 +308,10 @@ export default function App() {
     }));
   }, [priceDataWithMA, stockSelectedIndicator]);
 
-  const filteredStockIndicatorData = useMemo(() => {
-    if (!stockIndicatorData.length) return [];
-    return filterByDateRange(stockIndicatorData, chartDateRange);
-  }, [stockIndicatorData, chartDateRange]);
-
-  const indexDataWithMA = useMemo(() => {
-    if (!result?.index_data?.length) return [];
-    const closes = result.index_data.map((d) => d.close);
-    const ma5 = calcMA(closes, 5);
-    const ma10 = calcMA(closes, 10);
-    const ma20 = calcMA(closes, 20);
-    const ma60 = calcMA(closes, 60);
-    const boll = calcBoll(closes, 20, 2.0);
-    return result.index_data.map((d, i) => ({
-      ...d,
-      ma5: ma5[i],
-      ma10: ma10[i],
-      ma20: ma20[i],
-      ma60: ma60[i],
-      boll_upper: boll.upper[i],
-      boll_mid: boll.mid[i],
-      boll_lower: boll.lower[i],
-    }));
-  }, [result]);
-
-  const filteredIndexData = useMemo(() => {
-    if (!indexDataWithMA.length) return [];
-    return filterByDateRange(indexDataWithMA, chartDateRange);
-  }, [indexDataWithMA, chartDateRange]);
+  const indexDataWithMA = useMemo(
+    () => buildKlineSeries(result?.index_data ?? []),
+    [result]
+  );
 
   const indexIndicatorData = useMemo(() => {
     if (!indexDataWithMA.length) return [];
@@ -459,17 +357,6 @@ export default function App() {
     if (!indexIndicatorData.length) return [];
     return filterByDateRange(indexIndicatorData, chartDateRange);
   }, [indexIndicatorData, chartDateRange]);
-
-  const klineBuyPoints = useMemo(() => filteredPriceData.filter(p => p.buy), [filteredPriceData]);
-  const klineSellPoints = useMemo(() => filteredPriceData.filter(p => p.sell), [filteredPriceData]);
-  const filteredPriceDataMap = useMemo(
-    () => new Map(filteredPriceData.map(d => [d.date, d])),
-    [filteredPriceData]
-  );
-  const filteredIndexDataMap = useMemo(
-    () => new Map(filteredIndexData.map(d => [d.date, d])),
-    [filteredIndexData]
-  );
 
   const submit = useMemo(
     () => async (form: BacktestFormValues, force = false) => {
