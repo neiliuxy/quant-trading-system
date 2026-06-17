@@ -232,27 +232,65 @@ def load_security_etf_data(start, end, symbol='sh512880'):
     return df
 
 
-def _fetch_sse_turnover(date_text: str) -> float:
-    """Fetch SSE stock turnover for one trading day."""
-    df = ak.stock_sse_deal_daily(date=date_text)
+def _is_empty_data_error(e: Exception) -> bool:
+    """判断异常是否为「接口返回空数据」导致的确定性错误（重试无意义，应立即跳过）。
+
+    akshare 对空 result 套列名会抛 `Length mismatch: ... 1 elements, new values have N`。
+    这类错误每次都一样，重试只会浪费时间（早期年份大量交易日如此）。
+    """
+    return 'Length mismatch' in str(e)
+
+
+def _retry_akshare(fetch, what: str, attempts: int = 3):
+    """重试 AkShare 调用。交易所接口偶发 SSL EOF / 限流，重试可显著降低整段回测失败率。
+
+    但「空数据」类确定性错误（_is_empty_data_error）立即抛出，不重试。
+    """
+    last_err = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return fetch()
+        except Exception as e:
+            last_err = e
+            if _is_empty_data_error(e):
+                raise  # 确定性错误，重试无意义
+            print(f'{what} 请求失败(第{attempt}次): {e}')
+            if attempt < attempts:
+                time.sleep(2)
+    raise last_err
+
+
+def _fetch_sse_turnover(date_text: str):
+    """Fetch SSE stock turnover for one trading day. 数据缺失时返回 None（由调用方跳过该日）。"""
+    # SSE 接口对较早日期（约 2022 以前）返回空 result，akshare 套列名会抛 Length mismatch；
+    # 视作该日无数据，返回 None 让调用方跳过，而非让整段回测失败。
+    try:
+        df = _retry_akshare(lambda: ak.stock_sse_deal_daily(date=date_text), f'SSE成交额 {date_text}')
+    except Exception as e:
+        print(f'SSE成交额 {date_text} 无可用数据，跳过: {e}')
+        return None
     row = df.loc[df['单日情况'] == '成交金额']
     if row.empty:
-        raise RuntimeError(f'SSE turnover not found for {date_text}')
+        return None
     if '股票' in row.columns and pd.notna(row['股票'].iloc[0]):
         return float(row['股票'].iloc[0])
     columns = [col for col in ['主板A', '主板B', '科创板'] if col in row.columns]
     return float(row[columns].fillna(0).sum(axis=1).iloc[0])
 
 
-def _fetch_szse_turnover(date_text: str) -> float:
-    """Fetch SZSE stock turnover for one trading day."""
-    df = ak.stock_szse_summary(date=date_text)
+def _fetch_szse_turnover(date_text: str):
+    """Fetch SZSE stock turnover for one trading day. 数据缺失时返回 None（由调用方跳过该日）。"""
+    try:
+        df = _retry_akshare(lambda: ak.stock_szse_summary(date=date_text), f'SZSE成交额 {date_text}')
+    except Exception as e:
+        print(f'SZSE成交额 {date_text} 无可用数据，跳过: {e}')
+        return None
     exact_row = df.loc[df['证券类别'] == '股票']
     if not exact_row.empty:
         return float(exact_row['成交金额'].iloc[0])
     stock_rows = df[df['证券类别'].astype(str).str.contains('股票|A股|B股', na=False)]
     if stock_rows.empty:
-        raise RuntimeError(f'SZSE turnover not found for {date_text}')
+        return None
     return float(stock_rows['成交金额'].sum())
 
 
@@ -274,7 +312,11 @@ def load_market_turnover_data(start, end):
     trading_dates = pd.to_datetime(index_df['date']).drop_duplicates().sort_values()
     for current in trading_dates:
         date_text = current.strftime('%Y%m%d')
-        total_turnover = float(_fetch_sse_turnover(date_text)) + float(_fetch_szse_turnover(date_text))
+        sse = _fetch_sse_turnover(date_text)
+        szse = _fetch_szse_turnover(date_text)
+        if sse is None or szse is None:
+            continue  # 该交易日两市成交额数据不完整，跳过
+        total_turnover = float(sse) + float(szse)
         rows.append(
             {
                 'date': current,
