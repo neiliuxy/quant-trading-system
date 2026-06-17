@@ -2,71 +2,62 @@
 # Start Both QuantX Backend and Frontend Servers
 # Usage: ./start-all.sh
 
-echo ""
-echo "============================================================"
-echo "          QuantX Backtest Dashboard - Start All"
-echo "============================================================"
-echo ""
+set -e
 
-# Check if npm is installed
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PID_DIR="${XDG_RUNTIME_DIR:-/tmp}/quantx"
+PID_FILE_BACKEND="${PID_DIR}/backend.pid"
+PID_FILE_FRONTEND="${PID_DIR}/frontend.pid"
+
+mkdir -p "$PID_DIR"
+
+cleanup() {
+    if [ -f "$PID_FILE_BACKEND" ]; then
+        kill -0 "$(cat "$PID_FILE_BACKEND")" 2>/dev/null && kill -TERM "$(cat "$PID_FILE_BACKEND")"
+    fi
+    if [ -f "$PID_FILE_FRONTEND" ]; then
+        kill -0 "$(cat "$PID_FILE_FRONTEND")" 2>/dev/null && kill -TERM "$(cat "$PID_FILE_FRONTEND")"
+    fi
+    rm -f "$PID_FILE_BACKEND" "$PID_FILE_FRONTEND"
+}
+trap cleanup EXIT
+
 if ! command -v npm &> /dev/null; then
-    echo "Error: npm not found. Please install Node.js first."
+    echo "Error: npm not found."
     exit 1
 fi
-
-# Check if Python is installed
 if ! command -v python &> /dev/null; then
-    echo "Error: Python not found. Please install Python first."
+    echo "Error: python not found."
     exit 1
 fi
 
-echo "Starting Backend API Server..."
-echo "  - http://127.0.0.1:8000"
-echo ""
-
-# Start backend in background
+echo "Starting Backend API Server (port 8000)..."
 python -m uvicorn server.main:app --host 127.0.0.1 --port 8000 --reload &
 BACKEND_PID=$!
+echo $BACKEND_PID > "$PID_FILE_BACKEND"
+echo "Backend PID: $BACKEND_PID"
 
-# Wait for backend to start
-sleep 3
+sleep 2
 
-echo "Starting Frontend Development Server..."
-echo "  - http://127.0.0.1:5173"
-echo ""
-
-# Start frontend in background
-cd web
-npm run dev &
+echo "Starting Frontend Dev Server (port 5173)..."
+(cd "$SCRIPT_DIR/web" && npm run dev) &
 FRONTEND_PID=$!
+echo $FRONTEND_PID > "$PID_FILE_FRONTEND"
+echo "Frontend PID: $FRONTEND_PID"
 
-cd ..
+sleep 2
+
+BROWSER_URL="http://127.0.0.1:5173"
+if command -v open &> /dev/null; then
+    open "$BROWSER_URL"
+elif command -v xdg-open &> /dev/null; then
+    xdg-open "$BROWSER_URL"
+fi
 
 echo ""
-echo "============================================================"
-echo "                    Servers Started!"
-echo "============================================================"
 echo "Backend:  http://127.0.0.1:8000"
 echo "Frontend: http://127.0.0.1:5173"
-echo ""
-echo "Backend PID:  $BACKEND_PID"
-echo "Frontend PID: $FRONTEND_PID"
-echo ""
-echo "To stop all servers, run: ./stop-servers.sh"
-echo "============================================================"
+echo "Run ./stop-servers.sh to stop all servers."
 echo ""
 
-# Open browser (macOS)
-if command -v open &> /dev/null; then
-    sleep 2
-    open "http://127.0.0.1:5173"
-fi
-
-# Open browser (Linux)
-if command -v xdg-open &> /dev/null; then
-    sleep 2
-    xdg-open "http://127.0.0.1:5173"
-fi
-
-# Wait for both processes
 wait $BACKEND_PID $FRONTEND_PID

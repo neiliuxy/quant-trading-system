@@ -2,27 +2,38 @@
 # Stop QuantX Backend and Frontend Servers
 # Usage: ./stop-servers.sh
 
-echo ""
+PID_DIR="${XDG_RUNTIME_DIR:-/tmp}/quantx"
+PID_FILE_BACKEND="${PID_DIR}/backend.pid"
+PID_FILE_FRONTEND="${PID_DIR}/frontend.pid"
+
+stop_process() {
+    local label="$1"
+    local pid_file="$2"
+    if [ -f "$pid_file" ]; then
+        local pid
+        pid="$(cat "$pid_file")"
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo "Stopping $label (PID $pid)..."
+            kill -TERM "$pid"
+            sleep 1
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -KILL "$pid" 2>/dev/null
+            fi
+            echo "$label stopped"
+        else
+            echo "$label not running (stale PID file)"
+        fi
+        rm -f "$pid_file"
+    else
+        echo "$label PID file not found — is it running?"
+    fi
+}
+
 echo "Stopping QuantX Servers..."
 echo ""
 
-# Stop backend (uvicorn on port 8000)
-echo "Stopping backend API server (port 8000)..."
-if lsof -Pi :8000 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    kill -9 $(lsof -t -i:8000) 2>/dev/null
-    echo "Backend stopped"
-else
-    echo "Backend not running"
-fi
-
-# Stop frontend (vite on port 5173)
-echo "Stopping frontend dev server (port 5173)..."
-if lsof -Pi :5173 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    kill -9 $(lsof -t -i:5173) 2>/dev/null
-    echo "Frontend stopped"
-else
-    echo "Frontend not running"
-fi
+stop_process "Backend" "$PID_FILE_BACKEND"
+stop_process "Frontend" "$PID_FILE_FRONTEND"
 
 echo ""
 echo "All servers stopped."
