@@ -43,12 +43,17 @@ export interface UseKlineChartReturn {
   hoverInfo: HoverInfo | null;
 }
 
+/** A股后端返回 YYYYMMDD，LC 要求 YYYY-MM-DD，统一在此转换 */
+function toLcTime(date: string): string {
+  return `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
+}
+
 function toLineData(
   data: KlineRow[],
   key: 'ma5' | 'ma10' | 'ma20' | 'ma60' | 'boll_upper' | 'boll_mid' | 'boll_lower'
 ) {
   return data
-    .map(d => ({ time: d.date, value: d[key] as number | null }))
+    .map(d => ({ time: toLcTime(d.date), value: d[key] as number | null }))
     .filter((p): p is { time: string; value: number } => p.value !== null);
 }
 
@@ -112,7 +117,7 @@ export function useKlineChart(options: UseKlineChartOptions): UseKlineChartRetur
     if (!seriesRef.current || !options.data.length) return;
     const { candle, ma5, ma10, ma20, ma60, bollUpper, bollMid, bollLower } = seriesRef.current;
     candle.setData(
-      options.data.map(d => ({ time: d.date, open: d.open, high: d.high, low: d.low, close: d.close }))
+      options.data.map(d => ({ time: toLcTime(d.date), open: d.open, high: d.high, low: d.low, close: d.close }))
     );
     ma5.setData(toLineData(options.data, 'ma5'));
     ma10.setData(toLineData(options.data, 'ma10'));
@@ -140,7 +145,7 @@ export function useKlineChart(options: UseKlineChartOptions): UseKlineChartRetur
   useEffect(() => {
     if (!seriesRef.current) return;
     const markers: SeriesMarker<Time>[] = options.trades.map(t => ({
-      time: t.date,
+      time: toLcTime(t.date),
       position: t.side === 'buy' ? 'belowBar' : 'aboveBar',
       color: t.side === 'buy' ? '#22c55e' : '#ef4444',
       shape: t.side === 'buy' ? 'arrowUp' : 'arrowDown',
@@ -158,11 +163,13 @@ export function useKlineChart(options: UseKlineChartOptions): UseKlineChartRetur
         setHoverInfo(null);
         return;
       }
-      const date = param.time as string;
-      const row = options.data.find(d => d.date === date);
+      const lcDate = param.time as string; // LC returns YYYY-MM-DD
+      // Convert back to YYYYMMDD for lookup in options.data which uses that format
+      const yyyymmdd = lcDate.replace(/-/g, '');
+      const row = options.data.find(d => d.date === yyyymmdd);
       if (!row) { setHoverInfo(null); return; }
       setHoverInfo({
-        date, o: row.open, h: row.high, l: row.low, c: row.close,
+        date: yyyymmdd, o: row.open, h: row.high, l: row.low, c: row.close,
         ma5: row.ma5 ?? null, ma10: row.ma10 ?? null,
         ma20: row.ma20 ?? null, ma60: row.ma60 ?? null,
       });
