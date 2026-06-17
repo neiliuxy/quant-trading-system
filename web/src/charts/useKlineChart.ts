@@ -73,9 +73,11 @@ export function useKlineChart(options: UseKlineChartOptions): UseKlineChartRetur
   // 1. Create chart + all series on mount
   useEffect(() => {
     if (!options.container) return;
+    const width = options.container.clientWidth || 400;
+    const height = options.container.clientHeight || 400;
     const chart = createChart(options.container, {
-      width: options.container.clientWidth,
-      height: 400,
+      width,
+      height,
       layout: { background: { color: '#ffffff' }, textColor: '#1f2937' },
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { borderColor: '#d1d5db' },
@@ -100,7 +102,11 @@ export function useKlineChart(options: UseKlineChartOptions): UseKlineChartRetur
     seriesRef.current = { candle, ma5, ma10, ma20, ma60, bollUpper, bollMid, bollLower };
 
     const ro = new ResizeObserver(() => {
-      chart.applyOptions({ width: options.container!.clientWidth });
+      const w = options.container!.clientWidth;
+      const h = options.container!.clientHeight;
+      if (w > 0 && h > 0) {
+        chart.applyOptions({ width: w, height: h });
+      }
     });
     ro.observe(options.container);
 
@@ -126,6 +132,7 @@ export function useKlineChart(options: UseKlineChartOptions): UseKlineChartRetur
     bollUpper.setData(toLineData(options.data, 'boll_upper'));
     bollMid.setData(toLineData(options.data, 'boll_mid'));
     bollLower.setData(toLineData(options.data, 'boll_lower'));
+    chartRef.current?.timeScale().fitContent();
   }, [options.data]);
 
   // 3. Sync visibility

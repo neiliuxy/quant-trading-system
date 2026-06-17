@@ -135,6 +135,8 @@ th { color: #627282; font-size: 12px; }
 }
 
 .chart-container {
+  position: relative;
+  height: 400px;
   user-select: none;
   margin-bottom: 12px;
 }
