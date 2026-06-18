@@ -1,12 +1,13 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
 个人量化交易系统 — 低频波段策略，基于 Backtrader 框架，使用 AkShare 获取 A 股日线数据。
 持仓周期 3~10 个交易日，无需实时盯盘。
 支持多策略注册表架构、可选市场评分过滤器、FastAPI + React 的 Web 分析台。
+
+## 注意
+- 总是用codegraph查看代码仓库
 
 ## Commands
 
