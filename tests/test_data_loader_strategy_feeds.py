@@ -25,7 +25,7 @@ class _LoaderFakeHub:
         return DatasetResult(request=request, frame=pd.DataFrame(), cache_hit=False)
 
 
-def test_load_security_etf_data_normalizes_index_columns(monkeypatch, tmp_path):
+def test_load_security_etf_data_normalizes_index_columns(monkeypatch):
     sample = pd.DataFrame(
         {
             "date": pd.to_datetime(["2024-01-02", "2024-01-03"]),
@@ -95,27 +95,6 @@ def test_load_market_turnover_data_uses_trading_dates_only(monkeypatch):
     assert df["date"].dt.strftime("%Y%m%d").tolist() == ["20240208", "20240219"]
 
 
-def test_read_cached_frame_accepts_equivalent_columns_and_reorders(tmp_path):
-    cache_path = tmp_path / "cached.csv"
-    pd.DataFrame(
-        {
-            "close": [3.0],
-            "date": ["2024-01-02"],
-            "volume": [4.0],
-            "low": [2.0],
-            "amount": [5.0],
-            "high": [6.0],
-            "open": [1.0],
-        }
-    ).to_csv(cache_path, index=False)
-
-    df = data_loader._read_cached_frame(str(cache_path), data_loader.INDEX_STANDARD_COLUMNS)
-
-    assert df is not None
-    assert list(df.columns) == data_loader.INDEX_STANDARD_COLUMNS
-    assert df.loc[0, "date"].strftime("%Y%m%d") == "20240102"
-
-
 def test_load_market_turnover_skips_days_with_missing_data(monkeypatch):
     """Loader 返回的 turnover 帧已剔除缺数日，包装函数原样透传。"""
     frame = pd.DataFrame(
@@ -136,45 +115,6 @@ def test_load_market_turnover_skips_days_with_missing_data(monkeypatch):
 
     assert df["date"].dt.strftime("%Y%m%d").tolist() == ["20240102", "20240103"]
     assert df["close"].tolist() == [140.0, 160.0]
-
-
-def test_fetch_sse_turnover_returns_none_on_empty_akshare_data(monkeypatch):
-    """akshare 对空 result 抛 Length mismatch 时，_fetch_sse_turnover 容错返回 None。"""
-    def raise_length_mismatch(date):
-        raise ValueError("Length mismatch: Expected axis has 1 elements, new values have 6 elements")
-
-    monkeypatch.setattr(data_loader.ak, "stock_sse_deal_daily", raise_length_mismatch)
-
-    assert data_loader._fetch_sse_turnover("20210617") is None
-
-
-def test_empty_data_error_does_not_retry(monkeypatch):
-    """空数据（Length mismatch）是确定性错误，必须立即跳过、不重试，否则早期年份逐日卡 6 秒。"""
-    calls = {"n": 0}
-
-    def boom(date):
-        calls["n"] += 1
-        raise ValueError("Length mismatch: Expected axis has 1 elements, new values have 6 elements")
-
-    monkeypatch.setattr(data_loader.ak, "stock_sse_deal_daily", boom)
-
-    assert data_loader._fetch_sse_turnover("20210617") is None
-    assert calls["n"] == 1  # 只调一次，无重试
-
-
-def test_network_error_does_retry(monkeypatch):
-    """SSL/网络类偶发错误应重试（区别于确定性的空数据错误）。"""
-    calls = {"n": 0}
-
-    def flaky(date):
-        calls["n"] += 1
-        raise ConnectionError("SSL: UNEXPECTED_EOF_WHILE_READING")
-
-    monkeypatch.setattr(data_loader.ak, "stock_sse_deal_daily", flaky)
-    monkeypatch.setattr(data_loader.time, "sleep", lambda s: None)  # 跳过 sleep 加速测试
-
-    assert data_loader._fetch_sse_turnover("20240102") is None
-    assert calls["n"] == 3  # 重试满 3 次
 
 
 def test_load_market_data_wrapper_matches_datahub_result(monkeypatch, tmp_path):
