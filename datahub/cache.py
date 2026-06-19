@@ -26,6 +26,14 @@ class CacheStore:
         self._locks_guard = threading.Lock()
 
     def lock_for(self, request: DatasetRequest) -> threading.Lock:
+        """Return an in-process lock for the given data key.
+
+        This prevents concurrent refreshes of the same dataset within a single
+        process. It does not protect against concurrent writes from separate
+        processes (e.g. multiple FastAPI workers or independent scripts); those
+        are currently guarded by the SQLite partial unique index on active
+        refreshes and the atomic write/replace in ``CacheStore.write``.
+        """
         with self._locks_guard:
             if request.data_key not in self._locks:
                 self._locks[request.data_key] = threading.Lock()

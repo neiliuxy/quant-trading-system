@@ -2098,3 +2098,12 @@ If no docs changed, skip this commit.
 - Review clarifications: worker-owned DB connections, `busy_timeout`, 409 refresh conflict, force-refresh cache shadowing, market-turnover freshness, and executor-before-API ordering are included.
 - Placeholder scan: no task uses TBD/TODO/fill-in wording; implementation snippets define the expected signatures.
 - Type consistency: `DatasetRequest`, `DatasetSpec`, `DatasetResult`, `DataHubError`, `DataHub`, `CacheStore`, and `DataHubRefreshExecutor` names are consistent across tasks.
+
+---
+
+## Known Limitations
+
+- **In-process cache-key locks only.** `CacheStore.lock_for` returns a `threading.Lock` scoped to the current process. Within the current single-process FastAPI design this is sufficient to prevent concurrent refreshes of the same dataset. Separate processes (multiple FastAPI workers, independent scripts, or future horizontal deployment) can still race on the same CSV path. Mitigations in place:
+  - SQLite partial unique index on `datahub_refreshes(request_key, status)` for `queued`/`running` statuses prevents duplicate active refresh records.
+  - `CacheStore.write` uses temp-file + atomic `os.replace`, so readers see either the old or the new file, never a partial write.
+  - If cross-process locking becomes a requirement, introduce a file-based lock (e.g. `filelock` on a per-key lock file under `data/cache/locks/`) or a distributed lock.
