@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+from datetime import datetime, timedelta
 from typing import Any, Iterable
 
 import pandas as pd
@@ -13,6 +15,7 @@ from datahub.metadata import (
     list_cache_records,
     mark_refresh_completed,
     mark_refresh_failed,
+    mark_refresh_running,
 )
 from datahub.models import DatasetRequest, DatasetResult, DataHubError
 from datahub.normalize import normalize_frame
@@ -29,11 +32,11 @@ class DataHub:
 
     SCHEMA_VERSION = "v1"
 
-    def __init__(self, root_dir: str, conn, source=None, executor=None):
+    def __init__(self, root_dir: str, conn, source=None, executor=None, cache=None):
         self.root_dir = root_dir
         self.conn = conn
         self.source = source or AkshareSource()
-        self.cache = CacheStore(root_dir)
+        self.cache = cache if cache is not None else CacheStore(root_dir)
         self.executor = executor
 
     def get_dataset(self, request: DatasetRequest) -> DatasetResult:
@@ -108,17 +111,24 @@ class DataHub:
                 mark_refresh_completed(self.conn, record["id"], cache_hit=True, output_cache_path=hit.cache_path)
                 return get_refresh_record(self.conn, record["id"])
 
-        record = create_refresh_record(
-            self.conn,
-            request_key=request.cache_key,
-            dataset_type=request.dataset_type,
-            symbol=request.symbol,
-            frequency=request.frequency,
-            start_date=request.start,
-            end_date=request.end,
-            force_refresh=request.force_refresh,
-            status="queued",
-        )
+        try:
+            record = create_refresh_record(
+                self.conn,
+                request_key=request.cache_key,
+                dataset_type=request.dataset_type,
+                symbol=request.symbol,
+                frequency=request.frequency,
+                start_date=request.start,
+                end_date=request.end,
+                force_refresh=request.force_refresh,
+                status="queued",
+            )
+        except sqlite3.IntegrityError:
+            # Concurrent request already inserted an active record; return it.
+            running = find_running_refresh(self.conn, request.cache_key)
+            if running is not None:
+                return running
+            raise
         if self.executor is not None:
             self.executor.submit(request, record["id"])
         return get_refresh_record(self.conn, record["id"])
@@ -126,6 +136,7 @@ class DataHub:
     def execute_refresh_once(self, request: DatasetRequest, refresh_id: int, conn=None) -> None:
         """Run one refresh inside a worker thread; update its record on completion/failure."""
         target = conn if conn is not None else self.conn
+        mark_refresh_running(target, refresh_id)
         try:
             result = self.get_dataset(request)
         except DataHubError as exc:
@@ -158,12 +169,16 @@ class DataHub:
         dataset_type: str | None = None,
         symbol: str | None = None,
         frequency: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
     ) -> list[dict[str, Any]]:
         return list_cache_records(
             self.conn,
             dataset_type=dataset_type,
             symbol=symbol,
             frequency=frequency,
+            start_date=start_date,
+            end_date=end_date,
         )
 
     def resolve_feed_requests(
@@ -173,6 +188,11 @@ class DataHub:
 
     def _record_cache(self, request: DatasetRequest, spec, frame: pd.DataFrame, path: str) -> None:
         try:
+            expires_at = None
+            if spec.cache_policy.ttl_seconds is not None:
+                expires_at = (
+                    datetime.now() + timedelta(seconds=spec.cache_policy.ttl_seconds)
+                ).strftime("%Y-%m-%dT%H:%M:%S")
             create_cache_record(
                 self.conn,
                 dataset_type=request.dataset_type,
@@ -184,7 +204,7 @@ class DataHub:
                 row_count=len(frame),
                 schema_version=self.SCHEMA_VERSION,
                 source_name=spec.source_name,
-                expires_at=None,
+                expires_at=expires_at,
             )
         except Exception:
             # Cache metadata is best-effort; never block the read path.

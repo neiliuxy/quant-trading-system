@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from backtest.service import BacktestRequest
+from datahub.cache import CacheStore
 from datahub.executor import DataHubRefreshExecutor
 from datahub.models import DatasetRequest, DataHubError
 from datahub.service import DataHub
@@ -5597,12 +5598,13 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
     app.state.db = conn
 
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    shared_cache = CacheStore(project_root)
 
     def _make_datahub(executor=None) -> DataHub:
-        return DataHub(root_dir=project_root, conn=conn, executor=executor)
+        return DataHub(root_dir=project_root, conn=conn, executor=executor, cache=shared_cache)
 
     def _datahub_worker(worker_conn, request, refresh_id) -> None:
-        worker_hub = DataHub(root_dir=project_root, conn=worker_conn)
+        worker_hub = DataHub(root_dir=project_root, conn=worker_conn, cache=shared_cache)
         worker_hub.execute_refresh_once(request, refresh_id, conn=worker_conn)
 
     app.state.datahub_executor = DataHubRefreshExecutor(
@@ -5736,8 +5738,18 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
         ]
 
     @app.get('/api/data/cache')
-    def datahub_cache(dataset_type: Optional[str] = None, symbol: Optional[str] = None):
-        return _make_datahub().list_cache(dataset_type=dataset_type, symbol=symbol)
+    def datahub_cache(
+        dataset_type: Optional[str] = None,
+        symbol: Optional[str] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+    ):
+        return _make_datahub().list_cache(
+            dataset_type=dataset_type,
+            symbol=symbol,
+            start_date=start,
+            end_date=end,
+        )
 
     @app.post('/api/data/refresh')
     def datahub_refresh(payload: DataRefreshRequest):

@@ -103,5 +103,16 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
         """
     )
     _migrate_jobs_schema(conn)
+    _migrate_datahub_schema(conn)
     conn.commit()
     return conn
+
+
+def _migrate_datahub_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_datahub_refreshes_active_unique
+        ON datahub_refreshes (request_key)
+        WHERE status IN ('queued', 'running')
+        """
+    )

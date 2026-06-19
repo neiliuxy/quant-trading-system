@@ -56,6 +56,8 @@ def list_cache_records(
     dataset_type: str | None = None,
     symbol: str | None = None,
     frequency: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> list[dict[str, Any]]:
     sql = "SELECT * FROM datahub_cache WHERE 1 = 1"
     params: list[Any] = []
@@ -68,6 +70,12 @@ def list_cache_records(
     if frequency is not None:
         sql += " AND frequency = ?"
         params.append(frequency)
+    if start_date is not None:
+        sql += " AND end_date >= ?"
+        params.append(start_date)
+    if end_date is not None:
+        sql += " AND start_date <= ?"
+        params.append(end_date)
     sql += " ORDER BY refreshed_at DESC, id DESC"
     return [dict(row) for row in conn.execute(sql, params).fetchall()]
 
