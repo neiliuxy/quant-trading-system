@@ -6,7 +6,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datahub.models import DatasetRequest
-from datahub.sources import AkshareSource
+from datahub.sources import AkshareSource, _AKSHARE_COLUMN_MAP, _fetch_sse_turnover
 
 
 def test_stock_daily_uses_tencent_fallback_when_eastmoney_fails(monkeypatch):
@@ -98,3 +98,46 @@ def test_market_turnover_skips_days_with_missing_turnover(monkeypatch):
 
     assert df["date"].dt.strftime("%Y%m%d").tolist() == ["20240102"]
     assert df.loc[0, "close"] == 140.0
+
+
+def test_fetch_sse_turnover_returns_none_on_empty_akshare_data(monkeypatch):
+    """akshare 对空 result 抛 Length mismatch 时，_fetch_sse_turnover 容错返回 None。"""
+    def raise_length_mismatch(date):
+        raise ValueError("Length mismatch: Expected axis has 1 elements, new values have 6 elements")
+
+    monkeypatch.setattr("datahub.sources.ak.stock_sse_deal_daily", raise_length_mismatch)
+
+    assert _fetch_sse_turnover("20210617") is None
+
+
+def test_empty_data_error_does_not_retry(monkeypatch):
+    """空数据（Length mismatch）是确定性错误，必须立即跳过、不重试。"""
+    calls = {"n": 0}
+
+    def boom(date):
+        calls["n"] += 1
+        raise ValueError("Length mismatch: Expected axis has 1 elements, new values have 6 elements")
+
+    monkeypatch.setattr("datahub.sources.ak.stock_sse_deal_daily", boom)
+
+    assert _fetch_sse_turnover("20210617") is None
+    assert calls["n"] == 1  # 只调一次，无重试
+
+
+def test_network_error_does_retry(monkeypatch):
+    """SSL/网络类偶发错误应重试（区别于确定性的空数据错误）。"""
+    calls = {"n": 0}
+
+    def flaky(date):
+        calls["n"] += 1
+        raise ConnectionError("SSL: UNEXPECTED_EOF_WHILE_READING")
+
+    monkeypatch.setattr("datahub.sources.ak.stock_sse_deal_daily", flaky)
+    monkeypatch.setattr("datahub.sources.time.sleep", lambda s: None)  # 跳过 sleep 加速测试
+
+    assert _fetch_sse_turnover("20240102") is None
+    assert calls["n"] == 3  # 重试满 3 次
+
+
+def test_akshare_amount_mapping_exists():
+    assert _AKSHARE_COLUMN_MAP["成交额"] == "amount"
