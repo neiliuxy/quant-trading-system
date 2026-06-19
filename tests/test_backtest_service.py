@@ -9,13 +9,43 @@ from backtest.run_backtest import generate_synthetic_data
 from backtest.service import BacktestRequest, run_backtest_service
 
 
+class FakeHub:
+    """In-memory DataHub stand-in for backtest.service tests."""
+
+    def __init__(self, *args, **kwargs):
+        self.frames: dict[tuple[str, str | None], pd.DataFrame] = {}
+        self.requests: list = []
+
+    def feed(self, dataset_type: str, frame: pd.DataFrame, symbol: str | None = None) -> None:
+        self.frames[(dataset_type, symbol)] = frame
+
+    def get_dataset(self, request):
+        from datahub.models import DatasetResult
+        self.requests.append(request)
+        key = (request.dataset_type, request.symbol)
+        if key in self.frames:
+            frame = self.frames[key]
+        elif (request.dataset_type, None) in self.frames:
+            frame = self.frames[(request.dataset_type, None)]
+        else:
+            frame = pd.DataFrame()
+        return DatasetResult(request=request, frame=frame.copy(), cache_hit=False)
+
+    def resolve_feed_requests(self, feed_ids, start, end):
+        from datahub.registry import request_for_feed_id
+        return [request_for_feed_id(feed_id, start, end) for feed_id in feed_ids]
+
+
+def _patch_hub(monkeypatch, hub: FakeHub) -> None:
+    monkeypatch.setattr('backtest.service.DataHub', lambda *a, **kw: hub)
+
+
 def test_run_backtest_service_returns_serializable_result(monkeypatch):
     df = generate_synthetic_data(start='20240101', end='20240630')
+    hub = FakeHub()
+    hub.feed('stock_daily', df)
+    _patch_hub(monkeypatch, hub)
 
-    def fake_loader(symbol, start, end):
-        return df.copy()
-
-    monkeypatch.setattr('backtest.service.load_market_data', fake_loader)
     request = BacktestRequest(
         symbol='000001',
         start='20240101',
@@ -41,7 +71,9 @@ def test_run_backtest_service_returns_serializable_result(monkeypatch):
 def test_run_backtest_service_accepts_strategy_params(monkeypatch):
     from backtest.run_backtest import generate_synthetic_data
     df = generate_synthetic_data(start='20240101', end='20240630')
-    monkeypatch.setattr('backtest.service.load_market_data', lambda symbol, start, end: df.copy())
+    hub = FakeHub()
+    hub.feed('stock_daily', df)
+    _patch_hub(monkeypatch, hub)
     request = BacktestRequest(
         symbol='000001',
         start='20240101',
@@ -63,10 +95,12 @@ def test_run_backtest_service_adds_required_feeds_for_citic_wave(monkeypatch):
     security_etf_df['amount'] = 0.0
     market_turnover_df = stock_df.copy()
 
-    monkeypatch.setattr('backtest.service.load_market_data', lambda symbol, start, end: stock_df.copy())
-    monkeypatch.setattr('backtest.service.load_shanghai_composite', lambda start, end: shanghai_df.copy())
-    monkeypatch.setattr('backtest.service.load_security_etf_data', lambda start, end: security_etf_df.copy())
-    monkeypatch.setattr('backtest.service.load_market_turnover_data', lambda start, end: market_turnover_df.copy())
+    hub = FakeHub()
+    hub.feed('stock_daily', stock_df)
+    hub.feed('index_daily', shanghai_df, symbol='sh000001')
+    hub.feed('etf_daily', security_etf_df, symbol='sh512880')
+    hub.feed('market_turnover', market_turnover_df)
+    _patch_hub(monkeypatch, hub)
 
     request = BacktestRequest(
         symbol='600030',
@@ -137,9 +171,9 @@ def test_cli_run_accepts_canonical_b1_strategy_id(monkeypatch, capsys):
 
 def test_market_filter_scores_are_exposed(monkeypatch):
     df = generate_synthetic_data(start='20240101', end='20240630')
-
-    def fake_loader(symbol, start, end):
-        return df.copy()
+    hub = FakeHub()
+    hub.feed('stock_daily', df)
+    _patch_hub(monkeypatch, hub)
 
     def fake_score(start, end, config):
         dates = pd.bdate_range(start=start, end=end)
@@ -151,7 +185,6 @@ def test_market_filter_scores_are_exposed(monkeypatch):
             'total_score': [0.6] * len(dates),
         })
 
-    monkeypatch.setattr('backtest.service.load_market_data', fake_loader)
     monkeypatch.setattr('backtest.service.get_market_score', fake_score)
 
     request = BacktestRequest(
@@ -170,9 +203,8 @@ def test_market_filter_scores_are_exposed(monkeypatch):
 
 
 def test_index_data_is_populated_when_loader_returns_df(monkeypatch):
-    """load_shanghai_composite 返回有效 DataFrame 时，result.index_data 应有 OHLCV+amount。"""
+    """index_daily 返回有效 DataFrame 时，result.index_data 应有 OHLCV+amount。"""
     from backtest.run_backtest import generate_synthetic_data
-    from datetime import datetime
     import pandas as pd
 
     stock_df = generate_synthetic_data(start='20240101', end='20240630')
@@ -188,8 +220,10 @@ def test_index_data_is_populated_when_loader_returns_df(monkeypatch):
         'amount': [3e12] * len(stock_df),
     })
 
-    monkeypatch.setattr('backtest.service.load_market_data', lambda s, st, e: stock_df.copy())
-    monkeypatch.setattr('backtest.service.load_shanghai_composite', lambda st, e: index_df.copy())
+    hub = FakeHub()
+    hub.feed('stock_daily', stock_df)
+    hub.feed('index_daily', index_df, symbol='sh000001')
+    _patch_hub(monkeypatch, hub)
 
     request = BacktestRequest(
         symbol='000001', start='20240101', end='20240630',
@@ -206,11 +240,13 @@ def test_index_data_is_populated_when_loader_returns_df(monkeypatch):
 
 
 def test_index_data_empty_when_loader_returns_none(monkeypatch):
-    """load_shanghai_composite 返回 None 时，index_data 为空 list，不抛错。"""
+    """index_daily 返回空 DataFrame 时，index_data 为空 list，不抛错。"""
     from backtest.run_backtest import generate_synthetic_data
     stock_df = generate_synthetic_data(start='20240101', end='20240630')
-    monkeypatch.setattr('backtest.service.load_market_data', lambda s, st, e: stock_df.copy())
-    monkeypatch.setattr('backtest.service.load_shanghai_composite', lambda st, e: None)
+    hub = FakeHub()
+    hub.feed('stock_daily', stock_df)
+    hub.feed('index_daily', pd.DataFrame(), symbol='sh000001')
+    _patch_hub(monkeypatch, hub)
 
     request = BacktestRequest(
         symbol='000001', start='20240101', end='20240630',
@@ -220,3 +256,36 @@ def test_index_data_empty_when_loader_returns_none(monkeypatch):
 
     assert result.index_data == []
     assert result.final_value > 0  # 回测本身成功
+
+
+def test_run_backtest_service_loads_primary_feed_through_datahub(monkeypatch):
+    import backtest.service as service
+
+    stock_df = generate_synthetic_data(start='20240101', end='20240630')
+    calls = []
+
+    class FakeHub:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get_dataset(self, request):
+            calls.append(request)
+            from datahub.models import DatasetResult
+            return DatasetResult(request=request, frame=stock_df.copy(), cache_hit=False)
+
+        def resolve_feed_requests(self, feed_ids, start, end):
+            return []
+
+    monkeypatch.setattr(service, 'DataHub', FakeHub)
+    monkeypatch.setattr(service, 'get_market_score', lambda *args, **kwargs: None)
+
+    result = run_backtest_service(BacktestRequest(
+        symbol='000001',
+        start='20240101',
+        end='20240630',
+        use_market_filter=False,
+    ))
+
+    assert result.symbol == '000001'
+    assert calls[0].dataset_type == 'stock_daily'
+    assert calls[0].symbol == '000001'

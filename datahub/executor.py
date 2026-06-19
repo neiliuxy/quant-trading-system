@@ -3,7 +3,7 @@ from __future__ import annotations
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Callable
 
-from server.db import connect
+from server.db import init_db
 
 from datahub.models import DatasetRequest
 
@@ -26,7 +26,7 @@ class DataHubRefreshExecutor:
 
     def submit(self, request: DatasetRequest, refresh_id: int) -> Future:
         def task() -> None:
-            conn = connect(self.db_path)
+            conn = init_db(self.db_path)
             try:
                 self.worker(conn, request, refresh_id)
             finally:

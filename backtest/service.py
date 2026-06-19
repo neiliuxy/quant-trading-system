@@ -1,19 +1,17 @@
 """Structured backtest service used by CLI and web API."""
 
+import os
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 import backtrader as bt
 import pandas as pd
 
-from backtest.data_loader import (
-    load_market_data,
-    load_market_turnover_data,
-    load_security_etf_data,
-    load_shanghai_composite,
-    resolve_date_range,
-)
+from backtest.data_loader import resolve_date_range
+from datahub.models import DatasetRequest
+from datahub.service import DataHub
 from market.market_analyzer import MarketConfig, get_market_score
+from server.db import DEFAULT_DB_PATH, init_db
 from strategies.registry import get_strategy_spec
 
 
@@ -157,20 +155,23 @@ def _market_score_payload(start: str, end: str, enabled: bool) -> tuple[dict[str
     return score_dict, rows, summary
 
 
-def _load_required_feed_frames(required_data: tuple[str, ...], start: str, end: str) -> list[pd.DataFrame]:
-    loaders = {
-        'shanghai_index': load_shanghai_composite,
-        'security_etf': load_security_etf_data,
-        'market_turnover': load_market_turnover_data,
-    }
+def _project_root() -> str:
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _make_datahub() -> DataHub:
+    return DataHub(root_dir=_project_root(), conn=init_db(DEFAULT_DB_PATH))
+
+
+def _load_required_feed_frames(
+    datahub: DataHub, required_data: tuple[str, ...], start: str, end: str
+) -> list[pd.DataFrame]:
     frames = []
-    for feed_id in required_data:
-        if feed_id not in loaders:
-            raise ValueError(f"Unknown required feed: '{feed_id}'")
-        frame = loaders[feed_id](start, end)
-        if frame is None or frame.empty:
-            raise ValueError(f"Required feed '{feed_id}' returned no data")
-        frames.append(frame)
+    for request in datahub.resolve_feed_requests(required_data, start, end):
+        result = datahub.get_dataset(request)
+        if result.frame is None or result.frame.empty:
+            raise ValueError(f"Required feed '{request.dataset_type}' returned no data")
+        frames.append(result.frame)
     return frames
 
 
@@ -181,27 +182,46 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
         req.start, req.end, req.use_market_filter
     )
 
-    df = load_market_data(req.symbol, req.start, req.end)
+    datahub = _make_datahub()
+
+    df = datahub.get_dataset(
+        DatasetRequest(
+            dataset_type='stock_daily',
+            symbol=req.symbol,
+            start=req.start,
+            end=req.end,
+        )
+    ).frame
     data = bt.feeds.PandasData(dataname=df, datetime=0)
 
     # 加载上证指数数据（不经过 Cerebro，独立缓存）
     index_data: list[dict[str, Any]] = []
-    index_df = load_shanghai_composite(req.start, req.end)
-    if index_df is not None and not index_df.empty:
-        for _, row in index_df.iterrows():
-            index_data.append({
-                'date': row['date'].strftime('%Y%m%d'),
-                'open': float(row['open']),
-                'high': float(row['high']),
-                'low': float(row['low']),
-                'close': float(row['close']),
-                'volume': float(row['volume']),
-                'amount': float(row['amount']),
-            })
+    try:
+        index_df = datahub.get_dataset(
+            DatasetRequest(
+                dataset_type='index_daily',
+                symbol='sh000001',
+                start=req.start,
+                end=req.end,
+            )
+        ).frame
+        if index_df is not None and not index_df.empty:
+            for _, row in index_df.iterrows():
+                index_data.append({
+                    'date': row['date'].strftime('%Y%m%d'),
+                    'open': float(row['open']),
+                    'high': float(row['high']),
+                    'low': float(row['low']),
+                    'close': float(row['close']),
+                    'volume': float(row['volume']),
+                    'amount': float(row['amount']),
+                })
+    except Exception:
+        index_df = None
 
     cerebro = bt.Cerebro()
     cerebro.adddata(data)
-    for frame in _load_required_feed_frames(spec.required_data, req.start, req.end):
+    for frame in _load_required_feed_frames(datahub, spec.required_data, req.start, req.end):
         cerebro.adddata(bt.feeds.PandasData(dataname=frame, datetime=0))
     strategy_kwargs = dict(req.strategy_params)
     strategy_kwargs['risk_percent'] = req.risk_percent
