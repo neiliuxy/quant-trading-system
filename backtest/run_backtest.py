@@ -10,7 +10,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backtest.data_loader import load_market_data, resolve_date_range
-from backtest.service import _load_required_feed_frames
+from backtest.service import _make_datahub
 from market.market_analyzer import MarketConfig, get_market_score
 from strategies.registry import get_strategy_spec
 
@@ -55,15 +55,24 @@ def _normalize_strategy_id(strategy_id):
 
 
 def _load_cli_required_feed_frames(strategy_id, start, end):
-    try:
-        return _load_required_feed_frames(get_strategy_spec(strategy_id).required_data, start, end)
-    except ValueError as exc:
-        if strategy_id == 'b1_strategy' and "shanghai_index" in str(exc):
-            print('Generating synthetic Shanghai Composite data for B1 strategy')
-            index_df = generate_synthetic_data(start=start, end=end, start_price=3000)
-            index_df['date'] = pd.to_datetime(index_df['date'])
-            return [index_df]
-        raise
+    hub = _make_datahub()
+    spec = get_strategy_spec(strategy_id)
+    frames = []
+    for request in hub.resolve_feed_requests(spec.required_data, start, end):
+        try:
+            result = hub.get_dataset(request)
+        except Exception as exc:
+            if strategy_id == 'b1_strategy' and request.dataset_type == 'index_daily':
+                print('Generating synthetic Shanghai Composite data for B1 strategy')
+                index_df = generate_synthetic_data(start=start, end=end, start_price=3000)
+                index_df['date'] = pd.to_datetime(index_df['date'])
+                frames.append(index_df)
+                continue
+            raise ValueError(f"Required feed '{request.dataset_type}' failed: {exc}") from exc
+        if result.frame is None or result.frame.empty:
+            raise ValueError(f"Required feed '{request.dataset_type}' returned no data")
+        frames.append(result.frame)
+    return frames
 
 
 def run(

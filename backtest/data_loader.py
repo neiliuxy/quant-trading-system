@@ -1,6 +1,8 @@
 """市场数据加载器，带 CSV 缓存支持。
 
 按 docs/superpowers/specs/2026-05-17-backtest-data-cache-design.md 规范实现。
+公共 load_* 函数是 DataHub 的薄包装；旧的内部辅助（_fetch_sse_turnover 等）保留
+以供既有测试与 CLI 兼容性使用。
 """
 
 import os
@@ -10,6 +12,10 @@ import time
 from datetime import date, datetime
 import pandas as pd
 import akshare as ak
+
+from datahub.models import DatasetRequest
+from datahub.service import DataHub
+from server.db import DEFAULT_DB_PATH, init_db
 
 # 项目根目录下的缓存路径
 _CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(
@@ -72,6 +78,11 @@ def resolve_date_range(start=None, end=None, years=3):
     if end is None:
         return _format_date(start), default_end
     return _format_date(start), _format_date(end)
+
+
+def _make_datahub() -> DataHub:
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return DataHub(root_dir=project_root, conn=init_db(DEFAULT_DB_PATH))
 
 
 def _sanitize_filename_part(value):
@@ -334,98 +345,62 @@ def load_market_turnover_data(start, end):
 
 
 def load_market_data(symbol, start, end):
-    """
-    加载市场数据，优先使用本地 CSV 缓存。
-
-    Args:
-        symbol: 股票代码，如 '000001'
-        start:  开始日期，如 '20200101'
-        end:    结束日期，如 '20231231'
-
-    Returns:
-        pd.DataFrame，含 date/open/high/low/close/volume 列，date 已转为 datetime。
-
-    Raises:
-        Exception: AkShare 下载失败且无可用缓存时抛出。
-    """
+    """DataHub 包装：加载股票日线数据（保留原签名）。"""
     start, end = resolve_date_range(start, end)
-    os.makedirs(_CACHE_DIR, exist_ok=True)
+    result = _make_datahub().get_dataset(
+        DatasetRequest(
+            dataset_type='stock_daily',
+            symbol=str(symbol).zfill(6),
+            start=start,
+            end=end,
+        )
+    )
+    return result.frame
 
-    # ── 1. 扫描缓存 ──────────────────────────────────────
-    pattern = os.path.join(_CACHE_DIR, f'{symbol}_*.csv')
-    candidates = []
-    for filepath in glob.glob(pattern):
-        parsed = _parse_filename(filepath)
-        if parsed is None:
-            continue
-        _, cached_start, cached_end = parsed
-        if cached_start <= start and cached_end >= end:
-            candidates.append((filepath, cached_start, cached_end))
 
-    # 按覆盖范围宽度升序（窄优先）
-    candidates.sort(key=lambda x: int(x[2]) - int(x[1]))
+def load_shanghai_composite(start, end):
+    """DataHub 包装：加载上证综合指数。获取失败时返回 None 保持向后兼容。"""
+    start, end = resolve_date_range(start, end)
+    try:
+        result = _make_datahub().get_dataset(
+            DatasetRequest(
+                dataset_type='index_daily',
+                symbol='sh000001',
+                start=start,
+                end=end,
+            )
+        )
+        return result.frame
+    except Exception as exc:
+        print(f'无法获取上证综合指数的历史数据: {exc}')
+        return None
 
-    for filepath, _, _ in candidates:
-        try:
-            df = pd.read_csv(filepath)
-            if set(df.columns) != set(STANDARD_COLUMNS):
-                continue
-            df['date'] = pd.to_datetime(df['date'])
-            mask = (df['date'] >= pd.to_datetime(start)) & (
-                df['date'] <= pd.to_datetime(end))
-            df = df[mask].copy()
-            if not df.empty:
-                print(f'从缓存读取: {os.path.basename(filepath)}')
-                return df
-        except Exception:
-            continue  # 文件损坏，尝试下一个
 
-    # ── 2. 下载并缓存 ────────────────────────────────────
-    print(f'正在获取 {symbol} 历史数据...')
+def load_security_etf_data(start, end, symbol='sh512880'):
+    """DataHub 包装：加载证券 ETF 数据。"""
+    start, end = resolve_date_range(start, end)
+    result = _make_datahub().get_dataset(
+        DatasetRequest(
+            dataset_type='etf_daily',
+            symbol=symbol,
+            start=start,
+            end=end,
+        )
+    )
+    return result.frame
 
-    # 2a. 东方财富 (stock_zh_a_hist)，重试 3 次
-    last_err = None
-    for attempt in range(1, 4):
-        try:
-            df = ak.stock_zh_a_hist(
-                symbol=symbol, period='daily',
-                start_date=start, end_date=end)
-            df = df[list(_AKSHARE_COLUMN_MAP.keys())]
-            df.columns = STANDARD_COLUMNS
-            last_err = None
-            break
-        except Exception as e:
-            last_err = e
-            print(f'东方财富数据源请求失败(第{attempt}次): {e}')
-            if attempt < 3:
-                time.sleep(2)
 
-    if last_err is not None:
-        # 2b. 腾讯备用 (stock_zh_a_hist_tx)，重试 2 次
-        print('切换至腾讯数据源...')
-        prefix = 'sh' if symbol.startswith('6') else 'sz'
-        for attempt in range(1, 3):
-            try:
-                df = ak.stock_zh_a_hist_tx(
-                    symbol=f'{prefix}{symbol}',
-                    start_date=start, end_date=end)
-                df = df.rename(columns={'amount': 'volume'})
-                df = df[STANDARD_COLUMNS]
-                break
-            except Exception as e:
-                print(f'腾讯数据源请求失败(第{attempt}次): {e}')
-                if attempt < 2:
-                    time.sleep(1)
-        else:
-            raise RuntimeError(
-                f'所有数据源均无法获取 {symbol} 的历史数据') from last_err
-
-    stock_name = _get_stock_name(symbol)
-    cache_path = os.path.join(_CACHE_DIR, f'{symbol}_{stock_name}_{start}_{end}.csv')
-    df.to_csv(cache_path, index=False)
-
-    df['date'] = pd.to_datetime(df['date'])
-    return df
+def load_market_turnover_data(start, end):
+    """DataHub 包装：加载两市成交额数据。"""
+    start, end = resolve_date_range(start, end)
+    result = _make_datahub().get_dataset(
+        DatasetRequest(
+            dataset_type='market_turnover',
+            start=start,
+            end=end,
+        )
+    )
+    return result.frame
 
 
 def load_data(symbol, start=None, end=None, include_index=False):

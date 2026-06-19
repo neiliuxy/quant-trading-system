@@ -19,6 +19,7 @@ data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
 data/results/
+data/cache/
 web/node_modules/
 web/dist/
 web/.vite/
