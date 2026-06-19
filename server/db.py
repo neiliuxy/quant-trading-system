@@ -10,6 +10,7 @@ def connect(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('PRAGMA foreign_keys=ON')
+    conn.execute('PRAGMA busy_timeout=5000')
     return conn
 
 
@@ -57,6 +58,48 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
             artifact_path TEXT NOT NULL,
             FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS datahub_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dataset_type TEXT NOT NULL,
+            symbol TEXT,
+            frequency TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            row_count INTEGER NOT NULL,
+            schema_version TEXT NOT NULL,
+            source_name TEXT NOT NULL,
+            expires_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            refreshed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_datahub_cache_lookup
+        ON datahub_cache(dataset_type, symbol, frequency, start_date, end_date);
+
+        CREATE TABLE IF NOT EXISTS datahub_refreshes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_key TEXT NOT NULL,
+            dataset_type TEXT NOT NULL,
+            symbol TEXT,
+            frequency TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            force_refresh INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            cache_hit INTEGER NOT NULL DEFAULT 0,
+            error_type TEXT,
+            error_message TEXT,
+            output_cache_path TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at TEXT,
+            finished_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_datahub_refreshes_request_status
+        ON datahub_refreshes(request_key, status);
         """
     )
     _migrate_jobs_schema(conn)
