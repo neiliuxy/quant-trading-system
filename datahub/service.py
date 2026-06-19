@@ -188,11 +188,7 @@ class DataHub:
 
     def _record_cache(self, request: DatasetRequest, spec, frame: pd.DataFrame, path: str) -> None:
         try:
-            expires_at = None
-            if spec.cache_policy.ttl_seconds is not None:
-                expires_at = (
-                    datetime.now() + timedelta(seconds=spec.cache_policy.ttl_seconds)
-                ).strftime("%Y-%m-%dT%H:%M:%S")
+            expires_at = self._compute_expires_at(request, spec)
             create_cache_record(
                 self.conn,
                 dataset_type=request.dataset_type,
@@ -209,3 +205,23 @@ class DataHub:
         except Exception:
             # Cache metadata is best-effort; never block the read path.
             pass
+
+    @staticmethod
+    def _compute_expires_at(request: DatasetRequest, spec) -> str | None:
+        """Return metadata expiry timestamp aligned with cache.read TTL logic.
+
+        Historical intervals (end < today) only expire when a historical TTL is
+        configured; otherwise the cache is treated as immutable and ``None`` is
+        returned. Current/up-to-today intervals use ``ttl_seconds``.
+        """
+        policy = spec.cache_policy
+        if policy.ttl_seconds is None:
+            return None
+        today = datetime.today().strftime("%Y%m%d")
+        is_historical = request.end < today
+        if is_historical and policy.historical_ttl_seconds is None:
+            return None
+        ttl = policy.ttl_seconds
+        if is_historical and policy.historical_ttl_seconds is not None:
+            ttl = policy.historical_ttl_seconds
+        return (datetime.now() + timedelta(seconds=ttl)).strftime("%Y-%m-%dT%H:%M:%S")
