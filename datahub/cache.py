@@ -35,6 +35,8 @@ class CacheStore:
         candidates = self._covering_candidates(request, spec)
         candidates.sort(key=lambda item: int(item[2]) - int(item[1]))
         for path, _, _ in candidates:
+            if is_cache_expired(path, request, spec):
+                continue
             try:
                 df = pd.read_csv(path)
                 df = normalize_frame(df, spec.columns)

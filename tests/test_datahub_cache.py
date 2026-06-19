@@ -93,3 +93,41 @@ def test_force_refresh_write_extends_to_existing_broader_cache(tmp_path):
     path = cache.path_for_write(request, _spec())
 
     assert path.endswith("000001_20240101_20240103.csv")
+
+
+def test_expired_edge_range_cache_is_skipped(tmp_path):
+    """Cache older than TTL on a request whose end == today is treated as expired
+    and a re-fetch is required."""
+    from datetime import datetime, timedelta
+
+    cache = CacheStore(str(tmp_path))
+    today = datetime.today().strftime("%Y%m%d")
+    cache_path = tmp_path / f"000001_{today}_{today}.csv"
+    _frame([f"{today[:4]}-{today[4:6]}-{today[6:8]}"]).to_csv(cache_path, index=False)
+
+    old_time = (datetime.now() - timedelta(hours=48)).timestamp()
+    os.utime(cache_path, (old_time, old_time))
+
+    request = DatasetRequest("stock_daily", symbol="000001", start=today, end=today)
+
+    assert cache.read(request, _spec()) is None
+
+
+def test_historical_range_cache_is_never_expired(tmp_path):
+    """Cache older than TTL on a fully historical range stays fresh — re-fetching
+    would just generate unnecessary AkShare traffic for ranges that never change."""
+    from datetime import datetime, timedelta
+
+    cache = CacheStore(str(tmp_path))
+    cache_path = tmp_path / "000001_20230101_20230131.csv"
+    _frame(["2023-01-02", "2023-01-03"]).to_csv(cache_path, index=False)
+
+    old_time = (datetime.now() - timedelta(days=400)).timestamp()
+    os.utime(cache_path, (old_time, old_time))
+
+    request = DatasetRequest("stock_daily", symbol="000001", start="20230102", end="20230103")
+
+    hit = cache.read(request, _spec())
+
+    assert hit is not None
+    assert hit.frame["date"].dt.strftime("%Y%m%d").tolist() == ["20230102", "20230103"]
