@@ -149,10 +149,6 @@ def load_data(symbol, start=None, end=None, include_index=False):
     if not include_index:
         return stock_df
 
-    try:
-        index_df = load_shanghai_composite(start, end)
-    except Exception as e:
-        print(f'上证指数加载失败，将继续使用股票数据: {e}')
-        index_df = None
+    index_df = load_shanghai_composite(start, end)
 
     return stock_df, index_df
