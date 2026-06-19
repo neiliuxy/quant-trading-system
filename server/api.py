@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import replace
 from difflib import SequenceMatcher
 from typing import Optional
@@ -8,11 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from backtest.service import BacktestRequest
+from datahub.executor import DataHubRefreshExecutor
+from datahub.models import DatasetRequest, DataHubError
+from datahub.service import DataHub
 from strategies.registry import list_strategies
 from server.db import DEFAULT_DB_PATH, init_db
 from server.executor import submit_background
 from server.jobs import create_or_reuse_job, delete_all_jobs, delete_job, get_job, get_job_result, list_jobs, request_from_job
-from server.models import JobCreateRequest
+from server.models import DataRefreshRequest, JobCreateRequest
 
 
 class StockItem(BaseModel):
@@ -5592,6 +5596,21 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
     conn = init_db(db_path)
     app.state.db = conn
 
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def _make_datahub(executor=None) -> DataHub:
+        return DataHub(root_dir=project_root, conn=conn, executor=executor)
+
+    def _datahub_worker(worker_conn, request, refresh_id) -> None:
+        worker_hub = DataHub(root_dir=project_root, conn=worker_conn)
+        worker_hub.execute_refresh_once(request, refresh_id, conn=worker_conn)
+
+    app.state.datahub_executor = DataHubRefreshExecutor(
+        db_path=db_path,
+        worker=_datahub_worker,
+        max_workers=2,
+    )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=['http://127.0.0.1:5173', 'http://localhost:5173'],
@@ -5700,5 +5719,50 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
     def delete_all_jobs_endpoint():
         deleted_count = delete_all_jobs(conn)
         return {'deleted_count': deleted_count}
+
+    @app.get('/api/data/datasets')
+    def datahub_datasets():
+        return [
+            {
+                'dataset_type': spec.dataset_type,
+                'label': spec.label,
+                'columns': list(spec.columns),
+                'symbol_required': spec.symbol_required,
+                'source_name': spec.source_name,
+                'ttl_seconds': spec.cache_policy.ttl_seconds,
+                'historical_ttl_seconds': spec.cache_policy.historical_ttl_seconds,
+            }
+            for spec in _make_datahub().list_datasets()
+        ]
+
+    @app.get('/api/data/cache')
+    def datahub_cache(dataset_type: Optional[str] = None, symbol: Optional[str] = None):
+        return _make_datahub().list_cache(dataset_type=dataset_type, symbol=symbol)
+
+    @app.post('/api/data/refresh')
+    def datahub_refresh(payload: DataRefreshRequest):
+        request = DatasetRequest(
+            dataset_type=payload.dataset_type,
+            symbol=payload.symbol,
+            start=payload.start,
+            end=payload.end,
+            frequency=payload.frequency,
+            force_refresh=payload.force_refresh,
+        )
+        hub = _make_datahub(executor=app.state.datahub_executor)
+        try:
+            refresh = hub.create_refresh(request)
+        except DataHubError as exc:
+            if exc.error_type == 'refresh_in_progress':
+                raise HTTPException(status_code=409, detail=exc.to_dict()) from exc
+            raise HTTPException(status_code=400, detail=exc.to_dict()) from exc
+        return refresh
+
+    @app.get('/api/data/refresh/{refresh_id}')
+    def datahub_refresh_detail(refresh_id: int):
+        refresh = _make_datahub().get_refresh(refresh_id)
+        if refresh is None:
+            raise HTTPException(status_code=404, detail='refresh not found')
+        return refresh
 
     return app

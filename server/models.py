@@ -15,6 +15,15 @@ class JobCreateRequest(BaseModel):
     force: bool = False
 
 
+class DataRefreshRequest(BaseModel):
+    dataset_type: str = Field(min_length=1)
+    symbol: str | None = None
+    start: str
+    end: str
+    frequency: str = 'daily'
+    force_refresh: bool = False
+
+
 class JobResponse(BaseModel):
     id: int
     run_key: str

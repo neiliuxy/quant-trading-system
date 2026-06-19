@@ -170,3 +170,76 @@ def test_delete_all_jobs_endpoint(tmp_path, monkeypatch):
 
     list_response = client.get('/api/jobs')
     assert len(list_response.json()) == 0
+
+
+def test_datahub_datasets_endpoint(tmp_path):
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+
+    response = client.get('/api/data/datasets')
+
+    assert response.status_code == 200
+    body = response.json()
+    assert {item['dataset_type'] for item in body} >= {
+        'stock_daily', 'index_daily', 'etf_daily', 'market_turnover',
+    }
+
+
+def test_datahub_refresh_endpoint_returns_record(tmp_path, monkeypatch):
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+
+    def fake_refresh(self, request):
+        return {
+            'id': 5,
+            'request_key': request.cache_key,
+            'dataset_type': request.dataset_type,
+            'symbol': request.symbol,
+            'frequency': request.frequency,
+            'start_date': request.start,
+            'end_date': request.end,
+            'force_refresh': int(request.force_refresh),
+            'status': 'queued',
+            'cache_hit': 0,
+            'error_type': None,
+            'error_message': None,
+            'output_cache_path': None,
+        }
+
+    monkeypatch.setattr('server.api.DataHub.create_refresh', fake_refresh)
+
+    response = client.post('/api/data/refresh', json={
+        'dataset_type': 'stock_daily',
+        'symbol': '000001',
+        'start': '20240101',
+        'end': '20240131',
+        'force_refresh': False,
+    })
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body['id'] == 5
+    assert body['status'] == 'queued'
+
+
+def test_force_refresh_conflict_returns_409_with_running_refresh_id(tmp_path, monkeypatch):
+    app = create_app(db_path=str(tmp_path / 'jobs.sqlite'))
+    client = TestClient(app)
+
+    def raise_conflict(*args, **kwargs):
+        from datahub.models import DataHubError
+        raise DataHubError('refresh_in_progress', 'Refresh already running: 7', {'refresh_id': 7})
+
+    monkeypatch.setattr('server.api.DataHub.create_refresh', raise_conflict)
+
+    response = client.post('/api/data/refresh', json={
+        'dataset_type': 'stock_daily',
+        'symbol': '000001',
+        'start': '20240101',
+        'end': '20240131',
+        'force_refresh': True,
+    })
+
+    assert response.status_code == 409
+    assert response.json()['detail']['error_type'] == 'refresh_in_progress'
+    assert response.json()['detail']['refresh_id'] == 7
