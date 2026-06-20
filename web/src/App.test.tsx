@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+import i18n from './i18n';
 import { getJob, getResult, getStocks, listJobs, listStrategies } from './api';
 
 vi.mock('./data-management/DataManagementView', () => ({
@@ -71,19 +72,54 @@ describe('App view switching', () => {
   });
 
   it('keeps the backtest view available when switching to and from data management', async () => {
+    await i18n.changeLanguage('zh');
     render(<App />);
 
-    expect(await screen.findByRole('button', { name: /开始回测/ })).toBeInTheDocument();
-    expect(screen.getByText('历史记录')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: new RegExp(i18n.t('form.runBacktest')) })).toBeInTheDocument();
+    expect(screen.getByText(i18n.t('history.title'))).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /数据管理/ }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(i18n.t('nav.dataMgmt')) }));
 
     expect(screen.getByText('Data Management View')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /开始回测/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: new RegExp(i18n.t('form.runBacktest')) })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /回测/ }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(i18n.t('nav.backtest')) }));
 
-    expect(await screen.findByRole('button', { name: /开始回测/ })).toBeInTheDocument();
-    expect(screen.getByText('历史记录')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: new RegExp(i18n.t('form.runBacktest')) })).toBeInTheDocument();
+    expect(screen.getByText(i18n.t('history.title'))).toBeInTheDocument();
+  });
+});
+
+describe('App locale switching', () => {
+  beforeEach(() => {
+    vi.mocked(getStocks).mockResolvedValue([]);
+    vi.mocked(listJobs).mockResolvedValue([]);
+    vi.mocked(listStrategies).mockResolvedValue([
+      {
+        id: 'swing_ma_boll',
+        name: 'Swing MA Boll',
+        description: 'demo strategy',
+        params: [{ name: 'fast_ma', label: 'Fast MA', type: 'int', default: 10 }],
+      },
+    ]);
+  });
+
+  afterEach(async () => {
+    await i18n.changeLanguage('zh');
+    localStorage.clear();
+  });
+
+  it('renders Chinese labels when locale is zh', async () => {
+    await i18n.changeLanguage('zh');
+    render(<App />);
+    expect(await screen.findByRole('button', { name: new RegExp(i18n.t('form.runBacktest')) })).toBeInTheDocument();
+    expect(screen.getByText(i18n.t('history.title'))).toBeInTheDocument();
+  });
+
+  it('renders English labels when locale is en', async () => {
+    await i18n.changeLanguage('en');
+    render(<App />);
+    expect(await screen.findByRole('button', { name: new RegExp(i18n.t('form.runBacktest')) })).toBeInTheDocument();
+    expect(screen.getByText(i18n.t('history.title'))).toBeInTheDocument();
   });
 });

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import RunForm from './RunForm';
+import i18n from './i18n';
 import type { BacktestFormValues, StrategySpec } from './types';
 
 const strategies: StrategySpec[] = [
@@ -32,6 +33,15 @@ const initialValue: BacktestFormValues = {
 };
 
 describe('RunForm', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('zh');
+  });
+
+  afterEach(async () => {
+    await i18n.changeLanguage('zh');
+    localStorage.clear();
+  });
+
   it('keeps edits local until submit', () => {
     const onSubmit = vi.fn();
     const onCompareMarketFilter = vi.fn();
@@ -53,7 +63,7 @@ describe('RunForm', () => {
 
     expect(onSubmit).not.toHaveBeenCalled();
 
-    fireEvent.submit(screen.getByRole('button', { name: /开始回测/i }).closest('form')!);
+    fireEvent.submit(screen.getByRole('button', { name: new RegExp(i18n.t('form.runBacktest')) }).closest('form')!);
 
     expect(onSubmit).toHaveBeenCalledWith(
       {
@@ -65,5 +75,42 @@ describe('RunForm', () => {
       },
       false
     );
+  });
+});
+
+describe('RunForm locale switching', () => {
+  afterEach(async () => {
+    await i18n.changeLanguage('zh');
+    localStorage.clear();
+  });
+
+  it('renders Chinese labels when locale is zh', async () => {
+    await i18n.changeLanguage('zh');
+    render(
+      <RunForm
+        initialValue={initialValue}
+        strategies={strategies}
+        submitting={false}
+        hasSelectedJob
+        onSubmit={vi.fn()}
+        onCompareMarketFilter={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: new RegExp(i18n.t('form.runBacktest')) })).toBeInTheDocument();
+  });
+
+  it('renders English labels when locale is en', async () => {
+    await i18n.changeLanguage('en');
+    render(
+      <RunForm
+        initialValue={initialValue}
+        strategies={strategies}
+        submitting={false}
+        hasSelectedJob
+        onSubmit={vi.fn()}
+        onCompareMarketFilter={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('button', { name: new RegExp(i18n.t('form.runBacktest')) })).toBeInTheDocument();
   });
 });
