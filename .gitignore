@@ -24,3 +24,7 @@ web/node_modules/
 web/dist/
 web/.vite/
 .superpowers/
+
+# Stale tsc build artifacts in web/src (use .tsx sources)
+web/src/**/*.js
+web/src/**/**/*.js
