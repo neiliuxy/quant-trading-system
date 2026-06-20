@@ -167,7 +167,7 @@ export default function DataManagementView() {
     <div className="data-management-view">
       <div className="result-header">
         <div>
-          <h2>Data Management</h2>
+          <h2>数据管理</h2>
           <p>数据集、缓存与刷新任务</p>
         </div>
       </div>

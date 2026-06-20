@@ -230,12 +230,12 @@ export default function App() {
   const kpis = useMemo(() => {
     if (!result) return [];
     return [
-      ['Return', formatPct(result.total_return_pct)],
-      ['Max Drawdown', formatPct(result.max_drawdown_pct)],
+      ['收益率', formatPct(result.total_return_pct)],
+      ['最大回撤', formatPct(result.max_drawdown_pct)],
       ['胜率', formatPct(result.win_rate_pct)],
-      ['Trades', String(result.trade_count)],
-      ['Final Value', result.final_value.toFixed(2)],
-      ['Average Score', result.market_score_summary.mean?.toFixed(2) ?? 'N/A'],
+      ['交易次数', String(result.trade_count)],
+      ['最终净值', result.final_value.toFixed(2)],
+      ['平均评分', result.market_score_summary.mean?.toFixed(2) ?? 'N/A'],
     ];
   }, [result]);
 
@@ -459,14 +459,14 @@ export default function App() {
           </button>
         </div>
 
-        <div className="view-switch" role="group" aria-label="Primary view">
+        <div className="view-switch" role="group" aria-label="主视图切换">
           <button
             type="button"
             className={activeView === 'backtest' ? 'active' : ''}
             onClick={() => setActiveView('backtest')}
           >
             <LineChart size={16} />
-            Backtest
+            回测
           </button>
           <button
             type="button"
@@ -474,7 +474,7 @@ export default function App() {
             onClick={() => setActiveView('data')}
           >
             <Database size={16} />
-            Data Management
+            数据管理
           </button>
         </div>
 

@@ -86,16 +86,16 @@ export default function CacheTable({
         <form className="data-filter-form" onSubmit={queryCache}>
           {selectedDataset.symbol_required && (
             <label>
-              Symbol
+              代码
               <input name="symbol" placeholder="000001" />
             </label>
           )}
           <label>
-            Start
+            开始日期
             <input name="start" type="date" />
           </label>
           <label>
-            End
+            结束日期
             <input name="end" type="date" />
           </label>
           <button className="secondary" type="submit">
@@ -131,20 +131,20 @@ export default function CacheTable({
             <table>
               <thead>
                 <tr>
-                  <th>Dataset</th>
-                  <th>Symbol</th>
-                  <th>Range</th>
-                  <th className="numeric">Rows</th>
-                  <th>Source</th>
-                  <th>Refreshed</th>
-                  <th>Path</th>
+                  <th>数据集</th>
+                  <th>代码</th>
+                  <th>日期范围</th>
+                  <th className="numeric">行数</th>
+                  <th>来源</th>
+                  <th>刷新时间</th>
+                  <th>路径</th>
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.id}>
                     <td>{entry.dataset_type}</td>
-                    <td>{entry.symbol ?? 'global'}</td>
+                    <td>{entry.symbol ?? '全局'}</td>
                     <td>{formatDate(entry.start_date)} - {formatDate(entry.end_date)}</td>
                     <td className="numeric">{formatNumber(entry.row_count)}</td>
                     <td>
@@ -181,27 +181,27 @@ export default function CacheTable({
         <form className="refresh-form" onSubmit={refreshData}>
           {selectedDataset.symbol_required && (
             <label>
-              Refresh symbol
+              刷新代码
               <input name="refreshSymbol" placeholder="000001" />
             </label>
           )}
           <label>
-            Refresh start
+            刷新开始
             <input name="refreshStart" type="date" required />
           </label>
           <label>
-            Refresh end
+            刷新结束
             <input name="refreshEnd" type="date" required />
           </label>
           <label>
-            Frequency
+            频率
             <select name="frequency" defaultValue="daily">
-              <option value="daily">daily</option>
+              <option value="daily">每日</option>
             </select>
           </label>
           <label className="check-row">
             <input name="forceRefresh" type="checkbox" />
-            Force refresh
+            强制刷新
           </label>
           <button className="primary" type="submit" disabled={refreshing}>
             <RefreshCcw size={16} className={refreshing ? 'spin' : ''} />

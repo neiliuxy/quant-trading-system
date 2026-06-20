@@ -53,7 +53,7 @@ export default function DatasetCatalog({
     <section className="data-panel data-catalog">
       <div className="data-panel-header">
         <div>
-          <h3>Dataset Catalog</h3>
+          <h3>数据集目录</h3>
           <p className="muted">{visibleDatasets.length} 个可用数据集</p>
         </div>
       </div>

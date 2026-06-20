@@ -88,23 +88,23 @@ export default function RefreshQueue({
         <div className="refresh-detail-panel">
           <h4>任务详情 #{selected.id}</h4>
           <dl className="refresh-detail">
-            <dt>Status</dt>
+            <dt>状态</dt>
             <dd>
               <span className={`status status-${selected.status}`}>{selected.status}</span>
             </dd>
-            <dt>Dataset</dt>
+            <dt>数据集</dt>
             <dd>{selected.dataset_type}</dd>
-            <dt>Symbol</dt>
-            <dd>{selected.symbol ?? 'global'}</dd>
-            <dt>Range</dt>
+            <dt>代码</dt>
+            <dd>{selected.symbol ?? '全局'}</dd>
+            <dt>日期范围</dt>
             <dd>{selected.start_date} - {selected.end_date}</dd>
-            <dt>Duration</dt>
+            <dt>耗时</dt>
             <dd>{duration(selected.started_at, selected.finished_at)}</dd>
-            <dt>Cache hit</dt>
+            <dt>缓存命中</dt>
             <dd>{selected.cache_hit ? '是' : '否'}</dd>
             {selected.output_cache_path && (
               <>
-                <dt>Output</dt>
+                <dt>输出路径</dt>
                 <dd className="mono-cell" title={selected.output_cache_path}>
                   {selected.output_cache_path}
                 </dd>
@@ -112,13 +112,13 @@ export default function RefreshQueue({
             )}
             {selected.error_type && (
               <>
-                <dt>Error type</dt>
+                <dt>错误类型</dt>
                 <dd className="error-text">{selected.error_type}</dd>
               </>
             )}
             {selected.error_message && (
               <>
-                <dt>Error message</dt>
+                <dt>错误信息</dt>
                 <dd className="error-text">{selected.error_message}</dd>
               </>
             )}

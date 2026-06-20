@@ -55,9 +55,9 @@ describe('CacheTable', () => {
       />
     );
 
-    fireEvent.change(screen.getByLabelText('Symbol'), { target: { value: '600519' } });
-    fireEvent.change(screen.getByLabelText('Start'), { target: { value: '2024-02-01' } });
-    fireEvent.change(screen.getByLabelText('End'), { target: { value: '2024-02-29' } });
+    fireEvent.change(screen.getByLabelText('代码'), { target: { value: '600519' } });
+    fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2024-02-01' } });
+    fireEvent.change(screen.getByLabelText('结束日期'), { target: { value: '2024-02-29' } });
     fireEvent.click(screen.getByRole('button', { name: /查询缓存/ }));
 
     expect(onQuery).toHaveBeenCalledWith({
@@ -84,9 +84,9 @@ describe('CacheTable', () => {
       />
     );
 
-    expect(screen.queryByLabelText('Symbol')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Refresh start'), { target: { value: '2024-01-01' } });
-    fireEvent.change(screen.getByLabelText('Refresh end'), { target: { value: '2024-01-31' } });
+    expect(screen.queryByLabelText('代码')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('刷新开始'), { target: { value: '2024-01-01' } });
+    fireEvent.change(screen.getByLabelText('刷新结束'), { target: { value: '2024-01-31' } });
     fireEvent.click(screen.getByRole('button', { name: /刷新数据/ }));
 
     expect(onRefresh).toHaveBeenCalledWith({

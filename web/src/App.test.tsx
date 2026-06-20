@@ -76,12 +76,12 @@ describe('App view switching', () => {
     expect(await screen.findByRole('button', { name: /开始回测/ })).toBeInTheDocument();
     expect(screen.getByText('历史记录')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Data Management/ }));
+    fireEvent.click(screen.getByRole('button', { name: /数据管理/ }));
 
     expect(screen.getByText('Data Management View')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /开始回测/ })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Backtest/ }));
+    fireEvent.click(screen.getByRole('button', { name: /回测/ }));
 
     expect(await screen.findByRole('button', { name: /开始回测/ })).toBeInTheDocument();
     expect(screen.getByText('历史记录')).toBeInTheDocument();

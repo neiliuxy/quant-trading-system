@@ -103,7 +103,7 @@ describe('DataManagementView', () => {
     await waitFor(() => {
       expect(listCache).toHaveBeenLastCalledWith({ dataset_type: 'index_daily' });
     });
-    expect(screen.queryByLabelText('Symbol')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('代码')).not.toBeInTheDocument();
   });
 
   it('creates a refresh, adds it to the queue, polls detail, and reloads cache on completion', async () => {
@@ -112,9 +112,9 @@ describe('DataManagementView', () => {
     render(<DataManagementView />);
 
     await screen.findByText('A股日线');
-    fireEvent.change(screen.getByLabelText('Refresh symbol'), { target: { value: '000001' } });
-    fireEvent.change(screen.getByLabelText('Refresh start'), { target: { value: '2024-01-01' } });
-    fireEvent.change(screen.getByLabelText('Refresh end'), { target: { value: '2024-01-31' } });
+    fireEvent.change(screen.getByLabelText('刷新代码'), { target: { value: '000001' } });
+    fireEvent.change(screen.getByLabelText('刷新开始'), { target: { value: '2024-01-01' } });
+    fireEvent.change(screen.getByLabelText('刷新结束'), { target: { value: '2024-01-31' } });
     fireEvent.click(screen.getByRole('button', { name: /刷新数据/ }));
 
     await waitFor(() => {
@@ -148,9 +148,9 @@ describe('DataManagementView', () => {
     render(<DataManagementView />);
 
     await screen.findByText('A股日线');
-    fireEvent.change(screen.getByLabelText('Refresh symbol'), { target: { value: '000001' } });
-    fireEvent.change(screen.getByLabelText('Refresh start'), { target: { value: '2024-01-01' } });
-    fireEvent.change(screen.getByLabelText('Refresh end'), { target: { value: '2024-01-31' } });
+    fireEvent.change(screen.getByLabelText('刷新代码'), { target: { value: '000001' } });
+    fireEvent.change(screen.getByLabelText('刷新开始'), { target: { value: '2024-01-01' } });
+    fireEvent.change(screen.getByLabelText('刷新结束'), { target: { value: '2024-01-31' } });
     fireEvent.click(screen.getByRole('button', { name: /刷新数据/ }));
 
     expect(await screen.findByRole('button', { name: /#9 stock_daily/ })).toBeInTheDocument();
@@ -182,9 +182,9 @@ describe('DataManagementView', () => {
     render(<DataManagementView />);
 
     await screen.findByText('A股日线');
-    fireEvent.change(screen.getByLabelText('Refresh symbol'), { target: { value: '000001' } });
-    fireEvent.change(screen.getByLabelText('Refresh start'), { target: { value: '2024-01-01' } });
-    fireEvent.change(screen.getByLabelText('Refresh end'), { target: { value: '2024-01-31' } });
+    fireEvent.change(screen.getByLabelText('刷新代码'), { target: { value: '000001' } });
+    fireEvent.change(screen.getByLabelText('刷新开始'), { target: { value: '2024-01-01' } });
+    fireEvent.change(screen.getByLabelText('刷新结束'), { target: { value: '2024-01-31' } });
     fireEvent.click(screen.getByRole('button', { name: /刷新数据/ }));
 
     expect(await screen.findByText('该数据范围已有刷新任务在运行')).toBeInTheDocument();
