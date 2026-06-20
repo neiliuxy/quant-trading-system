@@ -35,6 +35,7 @@ export interface StockKlinePanelProps {
   onChangeDateRange: (next: DateRange | null) => void;
   defaultStart: string;
   defaultEnd: string;
+  locale?: string;
 }
 
 function fmt(v: number | null) {
@@ -61,6 +62,7 @@ export function StockKlinePanel(props: StockKlinePanelProps) {
     data: klineData,
     maVisibility: props.maVisibility,
     trades: markers,
+    locale: props.locale,
   });
 
   return (

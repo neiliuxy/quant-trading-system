@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Activity, BookOpen, Database, LineChart, Play, RefreshCcw, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import i18n from './i18n';
 import { createJob, createMarketFilterComparison, deleteJob, deleteAllJobs, getJob, getResult, getStocks, listJobs, listStrategies } from './api';
 import type { BacktestFormValues, BacktestResult, Job, StrategySpec } from './types';
 import ChartDateRangeControl from './ChartDateRangeControl';
@@ -624,6 +625,7 @@ export default function App() {
                 onChangeDateRange={setChartDateRange}
                 defaultStart={selectedJob?.start_date || ''}
                 defaultEnd={selectedJob?.end_date || ''}
+                locale={i18n.language}
               />
               <StockIndicatorPanel
                 data={stockIndicatorData}
@@ -645,6 +647,7 @@ export default function App() {
                   onChangeDateRange={setChartDateRange}
                   defaultStart={selectedJob?.start_date || ''}
                   defaultEnd={selectedJob?.end_date || ''}
+                  locale={i18n.language}
                 />
                 <IndexIndicatorPanel
                   data={indexIndicatorData}

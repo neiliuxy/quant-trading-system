@@ -14,6 +14,7 @@ export interface IndexKlinePanelProps {
   onChangeDateRange: (next: DateRange | null) => void;
   defaultStart: string;
   defaultEnd: string;
+  locale?: string;
 }
 
 function fmt(v: number | null) {
@@ -30,6 +31,7 @@ export function IndexKlinePanel(props: IndexKlinePanelProps) {
     data: klineData,
     maVisibility: props.maVisibility,
     trades: [],
+    locale: props.locale,
   });
 
   return (

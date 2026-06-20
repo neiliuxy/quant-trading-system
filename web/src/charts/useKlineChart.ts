@@ -9,6 +9,7 @@ import {
   type Time,
 } from 'lightweight-charts';
 import type { KlineRow, TradeMarker } from './buildSeries';
+import { chartLocale } from '../i18n/locale';
 
 export interface MaVisibility {
   ma5: boolean;
@@ -23,6 +24,7 @@ export interface UseKlineChartOptions {
   data: KlineRow[];
   maVisibility: MaVisibility;
   trades: TradeMarker[];
+  locale?: string;
 }
 
 export interface HoverInfo {
@@ -102,7 +104,7 @@ export function useKlineChart(options: UseKlineChartOptions): UseKlineChartRetur
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { borderColor: '#1e293b' },
       timeScale: { borderColor: '#1e293b', timeVisible: false },
-      localization: { locale: 'zh-CN', dateFormat: 'yyyy-MM-dd' },
+      localization: { locale: chartLocale(), dateFormat: 'yyyy-MM-dd' },
     });
     chartRef.current = chart;
 
@@ -217,6 +219,14 @@ export function useKlineChart(options: UseKlineChartOptions): UseKlineChartRetur
     if (idx0 === -1 || idx1 === -1) return;
     chartRef.current?.timeScale().setVisibleLogicalRange({ from: idx0, to: idx1 });
   };
+
+  // 7. Re-apply localization when language changes.
+  // lightweight-charts requires applyOptions for runtime locale changes.
+  useEffect(() => {
+    chartRef.current?.applyOptions({
+      localization: { locale: chartLocale(), dateFormat: 'yyyy-MM-dd' },
+    });
+  }, [options.locale]);
 
   return { fitContent, setVisibleRange, hoverInfo };
 }

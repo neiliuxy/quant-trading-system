@@ -1,5 +1,6 @@
 import type React from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   CartesianGrid, Legend, Line, LineChart, ReferenceDot,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -70,6 +71,7 @@ const SellMarker: React.FC<{ cx?: number; cy?: number }> = (props) => {
 };
 
 export function EquityPanel(props: EquityPanelProps) {
+  const { t } = useTranslation();
   const displayData = filterByDateRange(props.data, props.chartDateRange ?? null);
   const buyPoints = displayData.filter((p) => p.buy);
   const sellPoints = displayData.filter((p) => p.sell);
@@ -77,7 +79,7 @@ export function EquityPanel(props: EquityPanelProps) {
   return (
     <section className="panel">
       <div className="chart-header">
-        <h3>权益曲线 & 市场评分</h3>
+        <h3>{t('panel.equity')}</h3>
       </div>
 
       <div className="line-toggles">
@@ -86,35 +88,35 @@ export function EquityPanel(props: EquityPanelProps) {
           onClick={() => props.onToggleLine('equity')}
         >
           {props.lineVisibility.equity ? <Eye size={14} /> : <EyeOff size={14} />}
-          权益净值
+          {t('legend.equity')}
         </button>
         <button
           className={`toggle-btn ${props.lineVisibility.totalScore ? 'active' : ''}`}
           onClick={() => props.onToggleLine('totalScore')}
         >
           {props.lineVisibility.totalScore ? <Eye size={14} /> : <EyeOff size={14} />}
-          总评分
+          {t('legend.totalScore')}
         </button>
         <button
           className={`toggle-btn ${props.lineVisibility.trendScore ? 'active' : ''}`}
           onClick={() => props.onToggleLine('trendScore')}
         >
           {props.lineVisibility.trendScore ? <Eye size={14} /> : <EyeOff size={14} />}
-          趋势评分
+          {t('legend.trendScore')}
         </button>
         <button
           className={`toggle-btn ${props.lineVisibility.sentimentScore ? 'active' : ''}`}
           onClick={() => props.onToggleLine('sentimentScore')}
         >
           {props.lineVisibility.sentimentScore ? <Eye size={14} /> : <EyeOff size={14} />}
-          情绪评分
+          {t('legend.sentimentScore')}
         </button>
         <button
           className={`toggle-btn ${props.lineVisibility.volumeScore ? 'active' : ''}`}
           onClick={() => props.onToggleLine('volumeScore')}
         >
           {props.lineVisibility.volumeScore ? <Eye size={14} /> : <EyeOff size={14} />}
-          成交量评分
+          {t('legend.volumeScore')}
         </button>
       </div>
 
@@ -150,7 +152,7 @@ export function EquityPanel(props: EquityPanelProps) {
                 stroke={LINE_COLORS.equity}
                 dot={false}
                 strokeWidth={2}
-                name="权益净值"
+                name={t('legend.equity')}
                 isAnimationActive={false}
               />
             )}
@@ -162,7 +164,7 @@ export function EquityPanel(props: EquityPanelProps) {
                 stroke={LINE_COLORS.totalScore}
                 dot={false}
                 strokeWidth={2}
-                name="总评分"
+                name={t('legend.totalScore')}
                 isAnimationActive={false}
               />
             )}
@@ -173,7 +175,7 @@ export function EquityPanel(props: EquityPanelProps) {
                 dataKey="trend_score"
                 stroke={LINE_COLORS.trendScore}
                 dot={false}
-                name="趋势评分"
+                name={t('legend.trendScore')}
                 isAnimationActive={false}
               />
             )}
@@ -184,7 +186,7 @@ export function EquityPanel(props: EquityPanelProps) {
                 dataKey="sentiment_score"
                 stroke={LINE_COLORS.sentimentScore}
                 dot={false}
-                name="情绪评分"
+                name={t('legend.sentimentScore')}
                 isAnimationActive={false}
               />
             )}
@@ -195,7 +197,7 @@ export function EquityPanel(props: EquityPanelProps) {
                 dataKey="volume_score"
                 stroke={LINE_COLORS.volumeScore}
                 dot={false}
-                name="成交量评分"
+                name={t('legend.volumeScore')}
                 isAnimationActive={false}
               />
             )}
@@ -225,11 +227,11 @@ export function EquityPanel(props: EquityPanelProps) {
       <div className="trade-legend">
         <div className="trade-legend-item">
           <div className="trade-legend-dot buy"></div>
-          <span>买入点</span>
+          <span>{t('legend.buyPoint')}</span>
         </div>
         <div className="trade-legend-item">
           <div className="trade-legend-dot sell"></div>
-          <span>卖出点</span>
+          <span>{t('legend.sellPoint')}</span>
         </div>
       </div>
     </section>
