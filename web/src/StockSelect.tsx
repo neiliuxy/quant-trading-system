@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, AlertCircle } from 'lucide-react';
 import { getStocks } from './api';
 
@@ -13,6 +14,7 @@ interface StockSelectProps {
 }
 
 export function StockSelect({ value, onChange }: StockSelectProps) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredStocks, setFilteredStocks] = useState<Stock[]>([]);
@@ -33,7 +35,7 @@ export function StockSelect({ value, onChange }: StockSelectProps) {
         setAllStocks(stocks);
         setFilteredStocks(stocks);
       } catch (err) {
-        setError('Failed to load stocks');
+        setError(t('stockSelect.loadError'));
         console.error('Error loading stocks:', err);
       } finally {
         setIsLoading(false);
@@ -76,7 +78,7 @@ export function StockSelect({ value, onChange }: StockSelectProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const displayLabel = selectedStock ? `${selectedStock.code} - ${selectedStock.name}` : '选择股票';
+  const displayLabel = selectedStock ? `${selectedStock.code} - ${selectedStock.name}` : t('stockSelect.placeholder');
 
   return (
     <div className="stock-select-container" ref={containerRef}>
@@ -100,7 +102,7 @@ export function StockSelect({ value, onChange }: StockSelectProps) {
             ref={inputRef}
             type="text"
             className="stock-select-search"
-            placeholder="搜索代码或名称..."
+            placeholder={t('stockSelect.search')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             autoFocus
@@ -115,7 +117,7 @@ export function StockSelect({ value, onChange }: StockSelectProps) {
             ) : isLoading ? (
               <div className="stock-select-loading">
                 <div className="spinner"></div>
-                <span>加载股票列表中...</span>
+                <span>{t('stockSelect.loading')}</span>
               </div>
             ) : filteredStocks.length > 0 ? (
               filteredStocks.map((stock) => (
@@ -134,7 +136,7 @@ export function StockSelect({ value, onChange }: StockSelectProps) {
                 </button>
               ))
             ) : (
-              <div className="stock-select-empty">未找到匹配的股票</div>
+              <div className="stock-select-empty">{t('stockSelect.empty')}</div>
             )}
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { memo, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type DateRange = {
   start: string;
@@ -24,6 +25,7 @@ function getDraft(value: DateRange | null, defaultStart: string, defaultEnd: str
 }
 
 function ChartDateRangeControl({ value, defaultStart, defaultEnd, onChange }: Props) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<DateRange>(() => getDraft(value, defaultStart, defaultEnd));
 
   useEffect(() => {
@@ -46,11 +48,11 @@ function ChartDateRangeControl({ value, defaultStart, defaultEnd, onChange }: Pr
 
   return (
     <div className="chart-date-range">
-      <label>显示时间范围
+      <label>{t('dateRange.label')}
         <div className="date-range-inputs">
           <input
             type="text"
-            placeholder="YYYYMMDD"
+            placeholder={t('dateRange.placeholder')}
             value={draft.start}
             onChange={(e) => {
               const start = normalizeDateInput(e.target.value);
@@ -58,10 +60,10 @@ function ChartDateRangeControl({ value, defaultStart, defaultEnd, onChange }: Pr
             }}
             onBlur={(e) => commit('start', e.target.value)}
           />
-          <span>至</span>
+          <span>{t('common.to')}</span>
           <input
             type="text"
-            placeholder="YYYYMMDD"
+            placeholder={t('dateRange.placeholder')}
             value={draft.end}
             onChange={(e) => {
               const end = normalizeDateInput(e.target.value);
@@ -73,9 +75,9 @@ function ChartDateRangeControl({ value, defaultStart, defaultEnd, onChange }: Pr
             type="button"
             className="reset-date-btn"
             onClick={() => onChange(null)}
-            title="Reset to full range"
+            title={t('dateRange.resetTitle')}
           >
-            重置
+            {t('dateRange.reset')}
           </button>
         </div>
       </label>

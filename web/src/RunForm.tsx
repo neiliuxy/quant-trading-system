@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Play, RefreshCcw } from 'lucide-react';
 import { StockSelect } from './StockSelect';
 import StrategyParamsForm from './StrategyParamsForm';
@@ -35,6 +36,7 @@ function RunForm({
   onSubmit,
   onCompareMarketFilter,
 }: Props) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<BacktestFormValues>(initialValue);
 
   useEffect(() => {
@@ -68,14 +70,14 @@ function RunForm({
       }}
     >
       <label>
-        代码
+        {t('form.symbol')}
         <StockSelect
           value={draft.symbol}
           onChange={(code) => update('symbol', code)}
         />
       </label>
       <label>
-        开始日期
+        {t('form.startDate')}
         <input
           type="date"
           value={formatDateForInput(draft.start)}
@@ -83,7 +85,7 @@ function RunForm({
         />
       </label>
       <label>
-        结束日期
+        {t('form.endDate')}
         <input
           type="date"
           value={formatDateForInput(draft.end)}
@@ -92,7 +94,7 @@ function RunForm({
         />
       </label>
       <label>
-        初始资金
+        {t('form.cash')}
         <input
           type="number"
           value={draft.cash}
@@ -105,10 +107,10 @@ function RunForm({
           checked={draft.use_market_filter}
           onChange={(e) => update('use_market_filter', e.target.checked)}
         />
-        市场过滤器
+        {t('form.useMarketFilter')}
       </label>
       <label>
-        策略
+        {t('form.strategy')}
         <select
           value={draft.strategy_id}
           onChange={(e) => handleStrategyChange(e.target.value)}
@@ -126,7 +128,7 @@ function RunForm({
         />
       )}
       <button className="primary" type="submit" disabled={submitting}>
-        <Play size={16} /> 开始回测
+        <Play size={16} /> {t('form.runBacktest')}
       </button>
       <button
         className="secondary"
@@ -134,7 +136,7 @@ function RunForm({
         onClick={() => onSubmit(draft, true)}
         disabled={submitting || !hasSelectedJob}
       >
-        <RefreshCcw size={16} /> 强制重新运行
+        <RefreshCcw size={16} /> {t('form.forceRerun')}
       </button>
       <button
         className="secondary"
@@ -142,7 +144,7 @@ function RunForm({
         onClick={onCompareMarketFilter}
         disabled={!hasSelectedJob}
       >
-        对比过滤器
+        {t('form.compareMarketFilter')}
       </button>
     </form>
   );
