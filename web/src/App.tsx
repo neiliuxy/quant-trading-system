@@ -17,6 +17,7 @@ import { StockKlinePanel } from './panels/StockKlinePanel';
 import type { MaVisibility } from './panels/StockKlinePanel';
 import { IndexKlinePanel } from './panels/IndexKlinePanel';
 import DataManagementView from './data-management/DataManagementView';
+import { LanguageSwitcher } from './components/LanguageSwitcher';
 
 const defaultForm: BacktestFormValues = {
   symbol: '000001',
@@ -484,6 +485,8 @@ export default function App() {
             数据管理
           </button>
         </div>
+
+        <LanguageSwitcher />
 
         {activeView === 'backtest' && (
         <>
