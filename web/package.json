@@ -8,10 +8,12 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "i18next": "^23.16.8",
     "lightweight-charts": "^4.2.0",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "react-i18next": "^15.7.4",
     "recharts": "latest",
     "typescript": "latest",
     "vite": "latest"
