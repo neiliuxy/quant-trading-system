@@ -27,22 +27,28 @@ export function StockSelect({ value, onChange }: StockSelectProps) {
 
   // Load stocks on component mount
   useEffect(() => {
+    let cancelled = false;
     const loadStocks = async () => {
       setIsLoading(true);
       setError(null);
       try {
         const stocks = await getStocks();
+        if (cancelled) return;
         setAllStocks(stocks);
         setFilteredStocks(stocks);
       } catch (err) {
+        if (cancelled) return;
         setError(t('stockSelect.loadError'));
         console.error('Error loading stocks:', err);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     loadStocks();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Update selected stock when value changes

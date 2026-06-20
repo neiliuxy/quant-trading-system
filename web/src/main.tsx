@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
 import './i18n'; // MUST be before App import — initializes i18n singleton
+import App from './App';
 import './styles.css';
 
 createRoot(document.getElementById('root') as HTMLElement).render(
