@@ -20,6 +20,7 @@ data/*.sqlite-shm
 data/*.sqlite-wal
 data/results/
 data/cache/
+node_modules/
 web/node_modules/
 web/dist/
 web/.vite/
@@ -28,3 +29,9 @@ web/.vite/
 # Stale tsc build artifacts in web/src (use .tsx sources)
 web/src/**/*.js
 web/src/**/**/*.js
+
+# TypeScript build info and emitted vite config in web root
+web/tsconfig.tsbuildinfo
+web/tsconfig.node.tsbuildinfo
+web/vite.config.d.ts
+web/vite.config.js
