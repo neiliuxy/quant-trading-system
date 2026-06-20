@@ -1,22 +1,15 @@
 {
-  "common.cancel": "Cancel",
-  "common.confirm": "Confirm",
-  "common.refresh": "Refresh",
-  "common.reset": "Reset",
   "common.delete": "Delete",
   "common.deleting": "Deleting...",
   "common.deleteAll": "Delete All",
-  "common.close": "Close",
-  "common.search": "Search",
   "common.to": "to",
-  "common.global": "Global",
   "common.yes": "Yes",
   "common.no": "No",
-  "common.daily": "Daily",
   "common.secondsAgo": "s ago",
   "common.minutesAgo": "m ago",
   "common.hoursAgo": "h ago",
   "common.daysAgo": "d ago",
+  "common.cancel": "Cancel",
 
   "nav.backtest": "Backtest",
   "nav.dataMgmt": "Data Management",
@@ -35,11 +28,9 @@
   "form.forceRerun": "Force Rerun",
   "form.compareMarketFilter": "Compare Filter",
   "form.useMarketFilter": "Use Market Filter",
-  "form.riskPercent": "Risk Percent",
 
   "history.title": "History",
   "history.clear": "Clear History",
-  "history.empty": "No job history",
 
   "job.queued": "Queued",
   "job.running": "Running",
@@ -49,7 +40,6 @@
 
   "kpi.finalValue": "Final Value",
   "kpi.initialCash": "Initial Cash",
-  "kpi.totalReturn": "Total Return",
   "kpi.winRate": "Win Rate",
   "kpi.maxDrawdown": "Max Drawdown",
   "kpi.tradeCount": "Trade Count",
@@ -125,10 +115,7 @@
 
   "dataMgmt.title": "Data Management",
   "dataMgmt.subtitle": "Datasets, cache and refresh tasks",
-  "dataMgmt.cache": "Cache",
   "dataMgmt.dataset": "Dataset",
-  "dataMgmt.refreshQueue": "Refresh Queue",
-  "dataMgmt.datasetType": "Dataset Type",
   "dataMgmt.symbol": "Symbol",
   "dataMgmt.symbolAll": "All",
   "dataMgmt.frequency": "Frequency",
@@ -140,14 +127,8 @@
   "dataMgmt.path": "Path",
   "dataMgmt.dateRange": "Date Range",
   "dataMgmt.refreshedAt": "Refreshed At",
-  "dataMgmt.actions": "Actions",
   "dataMgmt.forceRefresh": "Force Refresh",
-  "dataMgmt.refresh": "Refresh",
-  "dataMgmt.delete": "Delete",
-  "dataMgmt.refreshSubmitted": "Refresh task submitted",
-  "dataMgmt.refreshFailed": "Refresh failed",
   "dataMgmt.noCacheEntries": "No matching cache entries",
-  "dataMgmt.empty": "No cache entries",
   "dataMgmt.refreshInProgress": "A refresh task is already running for this data range",
   "dataMgmt.selectDataset": "Please select a dataset",
   "dataMgmt.selectDatasetPrompt": "Please select a dataset to view cache and refresh",
@@ -188,8 +169,5 @@
   "dataMgmt.segmentEmpty": "No datasets available in this segment",
   "dataMgmt.segment.stock": "Stock",
   "dataMgmt.segment.index": "Index",
-  "dataMgmt.ttl": "TTL {value}",
-
-  "error.network": "Network error",
-  "error.unknown": "Unknown error"
+  "dataMgmt.ttl": "TTL {value}"
 }

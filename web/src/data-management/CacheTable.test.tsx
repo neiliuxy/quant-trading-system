@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import i18n from '../i18n';
 import CacheTable from './CacheTable';
 import type { CacheEntry, DatasetSpec } from '../types';
 
@@ -55,10 +56,10 @@ describe('CacheTable', () => {
       />
     );
 
-    fireEvent.change(screen.getByLabelText('代码'), { target: { value: '600519' } });
-    fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2024-02-01' } });
-    fireEvent.change(screen.getByLabelText('结束日期'), { target: { value: '2024-02-29' } });
-    fireEvent.click(screen.getByRole('button', { name: /查询缓存/ }));
+    fireEvent.change(screen.getByLabelText(i18n.t('dataMgmt.symbol')), { target: { value: '600519' } });
+    fireEvent.change(screen.getByLabelText(i18n.t('dataMgmt.start')), { target: { value: '2024-02-01' } });
+    fireEvent.change(screen.getByLabelText(i18n.t('dataMgmt.end')), { target: { value: '2024-02-29' } });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(i18n.t('dataMgmt.cacheQuery')) }));
 
     expect(onQuery).toHaveBeenCalledWith({
       dataset_type: 'stock_daily',
@@ -84,10 +85,10 @@ describe('CacheTable', () => {
       />
     );
 
-    expect(screen.queryByLabelText('代码')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('刷新开始'), { target: { value: '2024-01-01' } });
-    fireEvent.change(screen.getByLabelText('刷新结束'), { target: { value: '2024-01-31' } });
-    fireEvent.click(screen.getByRole('button', { name: /刷新数据/ }));
+    expect(screen.queryByLabelText(i18n.t('dataMgmt.symbol'))).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(i18n.t('dataMgmt.refreshStart')), { target: { value: '2024-01-01' } });
+    fireEvent.change(screen.getByLabelText(i18n.t('dataMgmt.refreshEnd')), { target: { value: '2024-01-31' } });
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(i18n.t('dataMgmt.refreshSubmit')) }));
 
     expect(onRefresh).toHaveBeenCalledWith({
       dataset_type: 'index_daily',
@@ -108,13 +109,13 @@ describe('CacheTable', () => {
     };
 
     const { rerender } = render(<CacheTable {...props} entries={[]} loading error={null} />);
-    expect(screen.getByText('缓存加载中...')).toBeInTheDocument();
+    expect(screen.getByText(i18n.t('dataMgmt.cacheLoading'))).toBeInTheDocument();
 
     rerender(<CacheTable {...props} entries={[]} loading={false} error="cache failed" />);
     expect(screen.getByText('cache failed')).toBeInTheDocument();
 
     rerender(<CacheTable {...props} entries={[]} loading={false} error={null} />);
-    expect(screen.getByText('没有匹配的缓存条目')).toBeInTheDocument();
+    expect(screen.getByText(i18n.t('dataMgmt.noCacheEntries'))).toBeInTheDocument();
 
     rerender(<CacheTable {...props} entries={entries} loading={false} error={null} />);
     expect(screen.getByText('000001')).toBeInTheDocument();

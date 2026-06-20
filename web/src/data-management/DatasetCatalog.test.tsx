@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import i18n from '../i18n';
 import DatasetCatalog from './DatasetCatalog';
 import type { DatasetSpec } from '../types';
 
@@ -40,7 +41,7 @@ describe('DatasetCatalog', () => {
     expect(screen.getByText('A股日线')).toBeInTheDocument();
     expect(screen.queryByText('大盘指数')).not.toBeInTheDocument();
     expect(screen.getByText('akshare')).toBeInTheDocument();
-    expect(screen.getByText('TTL 1d')).toBeInTheDocument();
+    expect(screen.getByText(i18n.t('dataMgmt.ttl', { value: '1d' }))).toBeInTheDocument();
   });
 
   it('emits segment and dataset selection events', () => {
@@ -58,7 +59,7 @@ describe('DatasetCatalog', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '大盘' }));
+    fireEvent.click(screen.getByRole('button', { name: i18n.t('dataMgmt.segment.index') }));
     fireEvent.click(screen.getByRole('button', { name: /A股日线/ }));
 
     expect(onChangeSegment).toHaveBeenCalledWith('index');
