@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Languages } from 'lucide-react';
-import i18n from '../i18n';
-
-type SupportedLng = 'zh' | 'en';
+import i18n, { STORAGE_KEY, type SupportedLng } from '../i18n';
 
 const LABELS: Record<SupportedLng, string> = { zh: '中文', en: 'English' };
 const ABBR: Record<SupportedLng, string> = { zh: 'ZH', en: 'EN' };
 
 function setLang(lng: SupportedLng) {
   void i18n.changeLanguage(lng);
-  localStorage.setItem('lang', lng);
+  localStorage.setItem(STORAGE_KEY, lng);
 }
 
 export function LanguageSwitcher() {

@@ -4,8 +4,8 @@ import { initReactI18next } from 'react-i18next';
 import zhDict from './locales/zh.json';
 import enDict from './locales/en.json';
 
-const STORAGE_KEY = 'lang';
-type SupportedLng = 'zh' | 'en';
+export const STORAGE_KEY = 'lang';
+export type SupportedLng = 'zh' | 'en';
 
 function readSavedLng(): SupportedLng {
   const saved = localStorage.getItem(STORAGE_KEY);
