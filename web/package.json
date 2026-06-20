@@ -4,7 +4,8 @@
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
-    "test": "vitest run"
+    "i18n:check": "node ../scripts/check-i18n-keys.mjs",
+    "test": "vitest run && npm run i18n:check"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
