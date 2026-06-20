@@ -82,13 +82,15 @@ Out of scope:
 
 ### 1. 进入页面
 
-进入 `Data Management` 后默认落在 `个股` 分段。页面并行加载：
+进入 `Data Management` 后默认落在 `个股` 分段。页面先加载：
 
 - `GET /api/data/datasets`
-- `GET /api/data/cache`（使用当前分段的默认过滤）
 
-右侧 `Refresh Queue` 在 v1 只显示“当前前端会话中创建过的 refresh”以及“用户主动查询过详情的
-refresh”。当前后端没有 refresh 列表接口，因此 v1 不伪造“全局最近刷新记录”。
+datasets 加载完成后，自动选中当前分段第一项，并基于该 `dataset_type` 发起一次
+`GET /api/data/cache` 查询。
+
+右侧 `Refresh Queue` 在 v1 只显示当前前端会话中创建过的 refresh。当前后端没有 refresh 列表接口，
+因此 v1 不伪造“全局最近刷新记录”。
 
 ### 2. 切换分段
 
