@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Eye, EyeOff, ZoomIn, ZoomOut } from 'lucide-react';
+import type React from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import {
   CartesianGrid, Legend, Line, LineChart, ReferenceDot,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -36,94 +36,48 @@ export interface EquityPanelProps {
   onToggleLine: (key: keyof LineVisibility) => void;
 }
 
-function BuyMarker(props: any) {
+// 图表线色（与 design tokens 对齐：--line-* 变量）
+const LINE_COLORS = {
+  equity: '#3b82f6',
+  totalScore: '#14b8a6',
+  trendScore: '#f59e0b',
+  sentimentScore: '#c084fc',
+  volumeScore: '#fb7185',
+} as const;
+
+const BuyMarker: React.FC<{ cx?: number; cy?: number }> = (props) => {
   const { cx, cy } = props;
-  if (cx == null || cy == null) return null;
+  if (cx == null || cy == null) return <g data-testid="buy-marker-empty" />;
   const size = 6;
   const points = [
     `${cx},${cy - size}`,
     `${cx - size},${cy + size}`,
     `${cx + size},${cy + size}`,
   ].join(' ');
-  return <polygon points={points} fill="#22c55e" stroke="#15803d" strokeWidth={1} />;
-}
+  return <polygon points={points} fill="#22c55e" stroke="#16a34a" strokeWidth={1} />;
+};
 
-function SellMarker(props: any) {
+const SellMarker: React.FC<{ cx?: number; cy?: number }> = (props) => {
   const { cx, cy } = props;
-  if (cx == null || cy == null) return null;
+  if (cx == null || cy == null) return <g data-testid="sell-marker-empty" />;
   const size = 6;
   const points = [
     `${cx},${cy + size}`,
     `${cx - size},${cy - size}`,
     `${cx + size},${cy - size}`,
   ].join(' ');
-  return <polygon points={points} fill="#ef4444" stroke="#b91c1c" strokeWidth={1} />;
-}
+  return <polygon points={points} fill="#ef4444" stroke="#dc2626" strokeWidth={1} />;
+};
 
 export function EquityPanel(props: EquityPanelProps) {
-  const [zoom, setZoom] = useState({ start: 0, end: 100 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState(0);
-
-  const filteredData = filterByDateRange(props.data, props.chartDateRange ?? null);
-
-  // Apply zoom only when chartDateRange is not set
-  const displayData = props.chartDateRange
-    ? filteredData
-    : (() => {
-        const start = Math.floor((props.data.length * zoom.start) / 100);
-        const end = Math.ceil((props.data.length * zoom.end) / 100);
-        return props.data.slice(start, end);
-      })();
-
-  const buyPoints = displayData.filter(p => p.buy);
-  const sellPoints = displayData.filter(p => p.sell);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true);
-    setDragStart(e.clientX);
-  };
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const delta = e.clientX - dragStart;
-    const range = zoom.end - zoom.start;
-    const movePercent = (delta / 800) * 100;
-    let newStart = zoom.start - movePercent;
-    let newEnd = zoom.end - movePercent;
-    if (newStart < 0) { newStart = 0; newEnd = range; }
-    if (newEnd > 100) { newEnd = 100; newStart = 100 - range; }
-    setZoom({ start: newStart, end: newEnd });
-    setDragStart(e.clientX);
-  };
-  const handleMouseUp = () => setIsDragging(false);
+  const displayData = filterByDateRange(props.data, props.chartDateRange ?? null);
+  const buyPoints = displayData.filter((p) => p.buy);
+  const sellPoints = displayData.filter((p) => p.sell);
 
   return (
     <section className="panel">
       <div className="chart-header">
         <h3>权益曲线 & 市场评分</h3>
-        <div className="zoom-controls">
-          <button
-            className="zoom-btn"
-            onClick={() => setZoom({ start: Math.max(0, zoom.start - 10), end: Math.min(100, zoom.end + 10) })}
-            title="缩小（显示更多数据）"
-          >
-            <ZoomOut size={16} /> 缩小
-          </button>
-          <button
-            className="zoom-btn"
-            onClick={() => setZoom({ start: Math.min(50, zoom.start + 10), end: Math.max(50, zoom.end - 10) })}
-            title="放大（显示更少数据）"
-          >
-            <ZoomIn size={16} /> 放大
-          </button>
-          <button
-            className="zoom-btn"
-            onClick={() => setZoom({ start: 0, end: 100 })}
-            title="重置"
-          >
-            重置
-          </button>
-        </div>
       </div>
 
       <div className="line-toggles">
@@ -171,28 +125,29 @@ export function EquityPanel(props: EquityPanelProps) {
         onChange={props.onChangeDateRange}
       />
 
-      <div
-        className="chart-container"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
-      >
+      <div className="chart-container">
         <ResponsiveContainer width="100%" height={400}>
           <LineChart data={displayData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" minTickGap={32} />
-            <YAxis yAxisId="left" domain={['auto', 'auto']} />
-            <YAxis yAxisId="right" orientation="right" domain={[0, 1]} />
-            <Tooltip />
-            <Legend />
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+            <XAxis dataKey="date" minTickGap={32} stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+            <YAxis yAxisId="left" domain={['auto', 'auto']} stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+            <YAxis yAxisId="right" orientation="right" domain={[0, 1]} stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+            <Tooltip
+              contentStyle={{
+                background: '#0f172a',
+                border: '1px solid #1e293b',
+                borderRadius: 6,
+                color: '#e2e8f0',
+              }}
+              labelStyle={{ color: '#94a3b8' }}
+            />
+            <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 12 }} />
             {props.lineVisibility.equity && (
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="value"
-                stroke="#2563eb"
+                stroke={LINE_COLORS.equity}
                 dot={false}
                 strokeWidth={2}
                 name="权益净值"
@@ -204,7 +159,7 @@ export function EquityPanel(props: EquityPanelProps) {
                 yAxisId="right"
                 type="monotone"
                 dataKey="total_score"
-                stroke="#0f766e"
+                stroke={LINE_COLORS.totalScore}
                 dot={false}
                 strokeWidth={2}
                 name="总评分"
@@ -216,7 +171,7 @@ export function EquityPanel(props: EquityPanelProps) {
                 yAxisId="right"
                 type="monotone"
                 dataKey="trend_score"
-                stroke="#f59e0b"
+                stroke={LINE_COLORS.trendScore}
                 dot={false}
                 name="趋势评分"
                 isAnimationActive={false}
@@ -227,7 +182,7 @@ export function EquityPanel(props: EquityPanelProps) {
                 yAxisId="right"
                 type="monotone"
                 dataKey="sentiment_score"
-                stroke="#7c3aed"
+                stroke={LINE_COLORS.sentimentScore}
                 dot={false}
                 name="情绪评分"
                 isAnimationActive={false}
@@ -238,7 +193,7 @@ export function EquityPanel(props: EquityPanelProps) {
                 yAxisId="right"
                 type="monotone"
                 dataKey="volume_score"
-                stroke="#dc2626"
+                stroke={LINE_COLORS.volumeScore}
                 dot={false}
                 name="成交量评分"
                 isAnimationActive={false}
@@ -250,7 +205,7 @@ export function EquityPanel(props: EquityPanelProps) {
                 x={point.date}
                 y={point.value}
                 yAxisId="left"
-                shape={BuyMarker}
+                shape={BuyMarker as never}
                 ifOverflow="extendDomain"
               />
             ))}
@@ -260,14 +215,13 @@ export function EquityPanel(props: EquityPanelProps) {
                 x={point.date}
                 y={point.value}
                 yAxisId="left"
-                shape={SellMarker}
+                shape={SellMarker as never}
                 ifOverflow="extendDomain"
               />
             ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <p className="chart-hint">提示：拖动图表左右查看相邻时间段数据。</p>
       <div className="trade-legend">
         <div className="trade-legend-item">
           <div className="trade-legend-dot buy"></div>

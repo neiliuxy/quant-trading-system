@@ -97,10 +97,11 @@ export function useKlineChart(options: UseKlineChartOptions): UseKlineChartRetur
     const chart = createChart(options.container, {
       width,
       height,
-      layout: { background: { color: '#ffffff' }, textColor: '#1f2937' },
+      layout: { background: { color: '#0f172a' }, textColor: '#e2e8f0' },
+      grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: '#d1d5db' },
-      timeScale: { borderColor: '#d1d5db', timeVisible: false },
+      rightPriceScale: { borderColor: '#1e293b' },
+      timeScale: { borderColor: '#1e293b', timeVisible: false },
       localization: { locale: 'zh-CN', dateFormat: 'yyyy-MM-dd' },
     });
     chartRef.current = chart;
@@ -110,13 +111,14 @@ export function useKlineChart(options: UseKlineChartOptions): UseKlineChartRetur
       borderUpColor: '#ef4444', borderDownColor: '#22c55e',
       wickUpColor: '#ef4444', wickDownColor: '#22c55e',
     });
-    const ma5 = chart.addLineSeries({ color: '#ef4444', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const ma10 = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const ma20 = chart.addLineSeries({ color: '#2563eb', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const ma60 = chart.addLineSeries({ color: '#7c3aed', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const bollUpper = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const bollMid = chart.addLineSeries({ color: '#eab308', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const bollLower = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    // MA 颜色：与涨/跌色错开，金/青/洋红/紫
+    const ma5 = chart.addLineSeries({ color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ma10 = chart.addLineSeries({ color: '#06b6d4', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ma20 = chart.addLineSeries({ color: '#ec4899', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ma60 = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const bollUpper = chart.addLineSeries({ color: '#fbbf24', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const bollMid = chart.addLineSeries({ color: '#fbbf24', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const bollLower = chart.addLineSeries({ color: '#fbbf24', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
 
     const series: SeriesBundle = { candle, ma5, ma10, ma20, ma60, bollUpper, bollMid, bollLower };
     seriesRef.current = series;

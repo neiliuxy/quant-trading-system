@@ -228,15 +228,22 @@ export default function App() {
   }, [comparisonJob?.id, comparisonJob?.status]);
 
   const kpis = useMemo(() => {
-    if (!result) return [];
-    return [
-      ['收益率', formatPct(result.total_return_pct)],
-      ['最大回撤', formatPct(result.max_drawdown_pct)],
-      ['胜率', formatPct(result.win_rate_pct)],
-      ['交易次数', String(result.trade_count)],
-      ['最终净值', result.final_value.toFixed(2)],
-      ['平均评分', result.market_score_summary.mean?.toFixed(2) ?? 'N/A'],
+    if (!result) return { primary: null, secondary: [] };
+    // 主指标：最终净值（绝对收益）
+    const primary = {
+      label: '最终净值',
+      value: result.final_value.toFixed(2),
+      sub: `初始 ${result.initial_cash.toFixed(0)} · 收益 ${formatPct(result.total_return_pct)}`,
+    };
+    // 次级指标：紧凑 chip
+    const secondary = [
+      { label: '胜率', value: formatPct(result.win_rate_pct) },
+      { label: '最大回撤', value: formatPct(result.max_drawdown_pct) },
+      { label: '交易次数', value: String(result.trade_count) },
+      { label: '平均评分', value: result.market_score_summary.mean?.toFixed(2) ?? 'N/A' },
+      { label: '起始资金', value: result.initial_cash.toFixed(0) },
     ];
+    return { primary, secondary };
   }, [result]);
 
   const mergedData = useMemo(() => {
@@ -553,10 +560,19 @@ export default function App() {
         {result ? (
           <>
             <div className="kpi-grid">
-              {kpis.map(([label, value]) => (
-                <div className="kpi" key={label}>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
+              {kpis.primary && (
+                <div className="kpi kpi-primary" key="primary">
+                  <div>
+                    <span className="kpi-label">{kpis.primary.label}</span>
+                    <div className="kpi-value">{kpis.primary.value}</div>
+                  </div>
+                  <span className="kpi-sub">{kpis.primary.sub}</span>
+                </div>
+              )}
+              {kpis.secondary.map(({ label, value }) => (
+                <div className="kpi kpi-compact" key={label}>
+                  <span className="kpi-label">{label}</span>
+                  <span className="kpi-value">{value}</span>
                 </div>
               ))}
             </div>
