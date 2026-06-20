@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BookOpen } from 'lucide-react';
 import { strategyGuides } from './strategyGuides';
 
@@ -7,6 +8,7 @@ type Props = {
 };
 
 export default function StrategyGuide({ onBack }: Props) {
+  const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState(strategyGuides[0]?.id ?? '');
   const selected = strategyGuides.find((s) => s.id === selectedId);
 
@@ -15,7 +17,7 @@ export default function StrategyGuide({ onBack }: Props) {
       <aside className="guide-sidebar">
         <div className="guide-sidebar-header">
           <BookOpen size={20} />
-          <h2>策略说明</h2>
+          <h2>{t('strategyGuide.title')}</h2>
         </div>
         <nav className="guide-nav">
           {strategyGuides.map((s) => (
@@ -29,7 +31,7 @@ export default function StrategyGuide({ onBack }: Props) {
           ))}
         </nav>
         <button className="guide-back-btn" onClick={onBack}>
-          &larr; 返回回测
+          &larr; {t('strategyGuide.back')}
         </button>
       </aside>
 
@@ -50,15 +52,15 @@ export default function StrategyGuide({ onBack }: Props) {
             </section>
 
             <section className="guide-section">
-              <h2>参数详解</h2>
+              <h2>{t('strategyGuide.params')}</h2>
               <div className="guide-params-table-wrapper">
                 <table className="guide-params-table">
                   <thead>
                     <tr>
-                      <th>参数名</th>
-                      <th>含义</th>
-                      <th>推荐值</th>
-                      <th>调整建议</th>
+                      <th>{t('strategyGuide.paramName')}</th>
+                      <th>{t('strategyGuide.paramMeaning')}</th>
+                      <th>{t('strategyGuide.paramRecommended')}</th>
+                      <th>{t('strategyGuide.paramTips')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -76,29 +78,29 @@ export default function StrategyGuide({ onBack }: Props) {
             </section>
 
             <section className="guide-section guide-chars">
-              <h2>交易特征</h2>
+              <h2>{t('strategyGuide.chars')}</h2>
               <div className="guide-chars-grid">
                 <div className="guide-char-card">
-                  <span className="guide-char-label">交易频率</span>
+                  <span className="guide-char-label">{t('strategyGuide.tradingFrequency')}</span>
                   <strong>{selected.characteristics.tradingFrequency}</strong>
                 </div>
                 <div className="guide-char-card">
-                  <span className="guide-char-label">持仓周期</span>
+                  <span className="guide-char-label">{t('strategyGuide.holdingPeriod')}</span>
                   <strong>{selected.characteristics.holdingPeriod}</strong>
                 </div>
                 <div className="guide-char-card">
-                  <span className="guide-char-label">适用股票</span>
+                  <span className="guide-char-label">{t('strategyGuide.applicableStocks')}</span>
                   <strong>{selected.characteristics.applicableStocks}</strong>
                 </div>
                 <div className="guide-char-card">
-                  <span className="guide-char-label">风险等级</span>
+                  <span className="guide-char-label">{t('strategyGuide.riskLevel')}</span>
                   <strong>{selected.characteristics.riskLevel}</strong>
                 </div>
               </div>
             </section>
           </>
         ) : (
-          <div className="guide-empty">未找到策略说明</div>
+          <div className="guide-empty">{t('strategyGuide.empty')}</div>
         )}
       </section>
     </div>
