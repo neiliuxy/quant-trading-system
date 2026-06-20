@@ -171,7 +171,7 @@
   "dataMgmt.polling": "轮询中",
   "dataMgmt.taskDetail": "任务详情 #{id}",
   "dataMgmt.status": "状态",
-  "dataMgmt.dataset": "数据集",
+  "dataMgmt.taskDataset": "数据集",
   "dataMgmt.duration": "耗时",
   "dataMgmt.cacheHit": "缓存命中",
   "dataMgmt.outputPath": "输出路径",
