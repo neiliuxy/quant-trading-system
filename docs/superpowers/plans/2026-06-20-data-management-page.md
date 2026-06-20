@@ -36,6 +36,7 @@ Create:
 - `web/src/data-management/RefreshQueue.test.tsx`: status and empty-state tests.
 - `web/src/data-management/DataManagementView.tsx`: container for data loading, dataset selection, cache querying, refresh creation, polling, and completion-triggered cache reload.
 - `web/src/data-management/DataManagementView.test.tsx`: integration-level component tests with mocked API functions.
+- `web/src/App.test.tsx`: top-level smoke test for Backtest / Data Management view switching.
 
 Modify:
 
@@ -198,6 +199,28 @@ describe('datahub api wrappers', () => {
     });
     expect(refresh.output_cache_path).toBe('/tmp/index.csv');
   });
+
+  it('preserves FastAPI error envelopes in rejected request messages', async () => {
+    const payload = {
+      detail: {
+        error_type: 'refresh_in_progress',
+        message: 'Refresh already running: 12',
+        refresh_id: 12,
+      },
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(await mockJsonResponse(payload, false, 409));
+
+    await expect(
+      createRefresh({
+        dataset_type: 'stock_daily',
+        symbol: '000001',
+        start: '20240101',
+        end: '20240131',
+        frequency: 'daily',
+        force_refresh: true,
+      })
+    ).rejects.toThrow(JSON.stringify(payload));
+  });
 });
 ```
 
@@ -254,9 +277,9 @@ export interface DataRefresh {
   frequency: string;
   start_date: string;
   end_date: string;
-  force_refresh: number | boolean;
+  force_refresh: number;
   status: DataRefreshStatus;
-  cache_hit: number | boolean;
+  cache_hit: number;
   error_type: string | null;
   error_message: string | null;
   output_cache_path: string | null;
@@ -1134,6 +1157,7 @@ describe('DataManagementView', () => {
   });
 
   it('creates a refresh, adds it to the queue, polls detail, and reloads cache on completion', async () => {
+    // shouldAdvanceTime keeps React Testing Library findBy/waitFor timers moving while polling uses fake timers.
     vi.useFakeTimers({ shouldAdvanceTime: true });
 
     render(<DataManagementView />);
@@ -1167,6 +1191,36 @@ describe('DataManagementView', () => {
       expect(listCache).toHaveBeenLastCalledWith({ dataset_type: 'stock_daily' });
     });
 
+  });
+
+  it('stops polling and keeps the last known refresh when detail polling fails', async () => {
+    // shouldAdvanceTime keeps React Testing Library findBy/waitFor timers moving while polling uses fake timers.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(getRefresh).mockRejectedValue(new Error('refresh detail failed'));
+
+    render(<DataManagementView />);
+
+    await screen.findByText('A股日线');
+    fireEvent.change(screen.getByLabelText('Refresh symbol'), { target: { value: '000001' } });
+    fireEvent.change(screen.getByLabelText('Refresh start'), { target: { value: '2024-01-01' } });
+    fireEvent.change(screen.getByLabelText('Refresh end'), { target: { value: '2024-01-31' } });
+    fireEvent.click(screen.getByRole('button', { name: /刷新数据/ }));
+
+    expect(await screen.findByRole('button', { name: /#9 stock_daily/ })).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(await screen.findByText('refresh detail failed')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /#9 stock_daily/ })).toBeInTheDocument();
+    const callsAfterFailure = vi.mocked(getRefresh).mock.calls.length;
+
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
+    expect(vi.mocked(getRefresh).mock.calls.length).toBe(callsAfterFailure);
   });
 
   it('maps refresh_in_progress conflicts to a specific message', async () => {
@@ -1204,7 +1258,7 @@ Expected: FAIL because `DataManagementView.tsx` does not exist.
 Create `web/src/data-management/DataManagementView.tsx`:
 
 ```tsx
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createRefresh, getRefresh, listCache, listDatasets } from '../api';
 import type { CacheEntry, CacheQueryParams, DataRefresh, DataRefreshPayload, DataSegment, DatasetSpec } from '../types';
 import CacheTable from './CacheTable';
@@ -1244,7 +1298,9 @@ export default function DataManagementView() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cacheError, setCacheError] = useState<string | null>(null);
+  const [pollingError, setPollingError] = useState<string | null>(null);
   const [lastCacheQuery, setLastCacheQuery] = useState<CacheQueryParams | null>(null);
+  const lastCacheQueryRef = useRef<CacheQueryParams | null>(null);
 
   const selectedDataset = useMemo(
     () => datasets.find((dataset) => dataset.dataset_type === selectedDatasetType) ?? null,
@@ -1260,6 +1316,7 @@ export default function DataManagementView() {
     setCacheLoading(true);
     setCacheError(null);
     setLastCacheQuery(params);
+    lastCacheQueryRef.current = params;
     try {
       const rows = await listCache(params);
       setCacheEntries(rows);
@@ -1346,17 +1403,24 @@ export default function DataManagementView() {
               });
               if (
                 latest.status === 'completed' &&
-                lastCacheQuery?.dataset_type === latest.dataset_type
+                lastCacheQueryRef.current?.dataset_type === latest.dataset_type
               ) {
-                void queryCache(lastCacheQuery);
+                void queryCache(lastCacheQueryRef.current);
               }
             }
           })
-          .catch((err) => setError(messageFromError(err)));
+          .catch((err) => {
+            setPollingError(messageFromError(err));
+            setPollingIds((prev) => {
+              const next = new Set(prev);
+              next.delete(refreshId);
+              return next;
+            });
+          });
       });
     }, 1500);
     return () => window.clearInterval(handle);
-  }, [pollingIds, lastCacheQuery]);
+  }, [pollingIds]);
 
   return (
     <div className="data-management-view">
@@ -1367,6 +1431,7 @@ export default function DataManagementView() {
         </div>
       </div>
       {error && <div className="error">{error}</div>}
+      {pollingError && <div className="error">{pollingError}</div>}
       <div className="data-management-grid">
         <DatasetCatalog
           segment={segment}
@@ -1438,6 +1503,7 @@ git commit -m "feat(web): orchestrate data management view"
 
 **Files:**
 
+- Create: `web/src/App.test.tsx`
 - Modify: `web/src/App.tsx`
 - Modify: `web/src/styles.css`
 
@@ -1451,7 +1517,76 @@ cd web && npm test
 
 Expected: PASS. This confirms the existing frontend suite and the new data-management tests are green before wiring the new view.
 
-- [ ] **Step 2: Wire `DataManagementView` into `App.tsx`**
+- [ ] **Step 2: Add failing App view-switch smoke test**
+
+Create `web/src/App.test.tsx`:
+
+```tsx
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import App from './App';
+import { getStocks, listJobs, listStrategies } from './api';
+
+vi.mock('./data-management/DataManagementView', () => ({
+  default: () => <div>Data Management View</div>,
+}));
+
+vi.mock('./api', () => ({
+  createJob: vi.fn(),
+  createMarketFilterComparison: vi.fn(),
+  deleteAllJobs: vi.fn(),
+  deleteJob: vi.fn(),
+  getJob: vi.fn(),
+  getResult: vi.fn(),
+  getStocks: vi.fn(),
+  listJobs: vi.fn(),
+  listStrategies: vi.fn(),
+}));
+
+describe('App view switching', () => {
+  beforeEach(() => {
+    vi.mocked(getStocks).mockResolvedValue([]);
+    vi.mocked(listJobs).mockResolvedValue([]);
+    vi.mocked(listStrategies).mockResolvedValue([
+      {
+        id: 'swing_ma_boll',
+        name: 'Swing MA Boll',
+        description: 'demo strategy',
+        params: [{ name: 'fast_ma', label: 'Fast MA', type: 'int', default: 10 }],
+      },
+    ]);
+  });
+
+  it('keeps the backtest view available when switching to and from data management', async () => {
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: /开始回测/ })).toBeInTheDocument();
+    expect(screen.getByText('历史记录')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Data Management/ }));
+
+    expect(screen.getByText('Data Management View')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /开始回测/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Backtest/ }));
+
+    expect(await screen.findByRole('button', { name: /开始回测/ })).toBeInTheDocument();
+    expect(screen.getByText('历史记录')).toBeInTheDocument();
+  });
+});
+```
+
+- [ ] **Step 3: Run the App smoke test and verify it fails**
+
+Run:
+
+```bash
+cd web && npm test -- App.test.tsx
+```
+
+Expected: FAIL because `Data Management` / `Backtest` view-switch controls do not exist yet.
+
+- [ ] **Step 4: Wire `DataManagementView` into `App.tsx`**
 
 In `web/src/App.tsx`, update imports:
 
@@ -1510,22 +1645,25 @@ Keep the existing `RunForm` and history section visible only for backtests:
 )}
 ```
 
-In the `content-panel`, render `DataManagementView` when selected:
+In the `content-panel`, render `DataManagementView` when selected. In the backtest branch, move the current `content-panel` children as one unchanged block: the error banner, selected-job header, result branch, chart panels, trade table, index fallback, and empty state currently inside `web/src/App.tsx`.
+
+Required shape:
 
 ```tsx
-{activeView === 'data' ? (
-  <DataManagementView />
-) : (
-  <>
-    {error && <div className="error">{error}</div>}
-    existing backtest content goes here unchanged
-  </>
-)}
+<section className="content-panel">
+  {activeView === 'data' ? (
+    <DataManagementView />
+  ) : (
+    <>
+      {/* Move the existing backtest content-panel children here unchanged. */}
+    </>
+  )}
+</section>
 ```
 
 Keep the existing delete modals outside that conditional so existing behavior remains unchanged when returning to the backtest view.
 
-- [ ] **Step 3: Add ops-page styles**
+- [ ] **Step 5: Add ops-page styles**
 
 Append to `web/src/styles.css`:
 
@@ -1753,7 +1891,7 @@ Append to `web/src/styles.css`:
 }
 ```
 
-- [ ] **Step 4: Run frontend unit tests**
+- [ ] **Step 6: Run frontend unit tests**
 
 Run:
 
@@ -1763,7 +1901,7 @@ cd web && npm test
 
 Expected: PASS for the full Vitest suite.
 
-- [ ] **Step 5: Run type check and production build**
+- [ ] **Step 7: Run type check and production build**
 
 Run:
 
@@ -1774,12 +1912,12 @@ cd web && npm run build
 
 Expected: TypeScript check exits 0, then Vite build exits 0.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 Run:
 
 ```bash
-git add web/src/App.tsx web/src/styles.css
+git add web/src/App.tsx web/src/App.test.tsx web/src/styles.css
 git commit -m "feat(web): add data management view switch"
 ```
 
@@ -1869,8 +2007,9 @@ Spec coverage:
 - Dataset catalog: Task 2.
 - Cache inspection with concrete `dataset_type`: Task 2 builds the cache UI, Task 3 wires dataset-driven queries.
 - Single refresh and polling: Tasks 1, 2, and 3.
+- Refresh polling failure keeps the last known state and stops retrying: Task 3.
 - Session-local refresh queue: Tasks 2 and 3.
-- Existing dashboard integration: Task 4.
+- Existing dashboard integration and view-switch regression coverage: Task 4.
 - Visual direction and responsive layout: Task 4.
 - Tests: Tasks 1 through 4.
 - Manual verification: Task 5.
