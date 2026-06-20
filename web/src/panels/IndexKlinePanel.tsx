@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff } from 'lucide-react';
 import ChartDateRangeControl from '../ChartDateRangeControl';
 import { buildKlineSeries, type KlineRow } from '../charts/buildSeries';
@@ -22,6 +23,7 @@ function fmt(v: number | null) {
 }
 
 export function IndexKlinePanel(props: IndexKlinePanelProps) {
+  const { t } = useTranslation();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const ref = useCallback((node: HTMLDivElement | null) => setContainer(node), []);
   const klineData: KlineRow[] = useMemo(() => buildKlineSeries(props.data), [props.data]);
@@ -37,7 +39,7 @@ export function IndexKlinePanel(props: IndexKlinePanelProps) {
   return (
     <section className="panel">
       <div className="chart-header">
-        <h3>上证指数 K 线 + MA + BOLL</h3>
+        <h3>{t('panel.indexKline')}</h3>
       </div>
 
       <div className="line-toggles">

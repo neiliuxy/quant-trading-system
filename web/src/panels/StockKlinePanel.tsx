@@ -70,7 +70,7 @@ export function StockKlinePanel(props: StockKlinePanelProps) {
   return (
     <section className="panel">
       <div className="chart-header">
-        <h3>回测股票 K 线 + MA + BOLL</h3>
+        <h3>{t('panel.stockKline')}</h3>
       </div>
 
       <div className="line-toggles">

@@ -2,6 +2,7 @@ import {
   Bar, CartesianGrid, Cell, ComposedChart, Line, ReferenceLine,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
+import { useTranslation } from 'react-i18next';
 import { filterByDateRange, DateRange } from '../charts/filterByDateRange';
 import type { IndicatorKey, IndicatorPoint } from './StockIndicatorPanel';
 
@@ -13,12 +14,13 @@ export interface IndexIndicatorPanelProps {
 }
 
 export function IndexIndicatorPanel(props: IndexIndicatorPanelProps) {
+  const { t } = useTranslation();
   const filtered = filterByDateRange(props.data, props.chartDateRange);
 
   return (
     <section className="panel">
       <div className="chart-header">
-        <h3>上证指数技术指标</h3>
+        <h3>{t('panel.indexIndicator')}</h3>
         <select
           value={props.selected}
           onChange={(e) => props.onChangeSelected(e.target.value as IndicatorKey)}
