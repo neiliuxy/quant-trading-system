@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Activity, BookOpen, Database, LineChart, Play, RefreshCcw, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { createJob, createMarketFilterComparison, deleteJob, deleteAllJobs, getJob, getResult, getStocks, listJobs, listStrategies } from './api';
 import type { BacktestFormValues, BacktestResult, Job, StrategySpec } from './types';
 import ChartDateRangeControl from './ChartDateRangeControl';
@@ -47,15 +48,8 @@ function formatPct(value: number) {
   return `${value.toFixed(2)}%`;
 }
 
-const statusLabels: Record<string, string> = {
-  'queued': '排队中',
-  'running': '运行中',
-  'completed': '已完成',
-  'failed': '失败',
-};
-
-function StatusBadge({ status }: { status: string }) {
-  return <span className={`status status-${status}`}>{statusLabels[status] || status}</span>;
+function StatusBadge({ status, labels }: { status: string; labels: Record<string, string> }) {
+  return <span className={`status status-${status}`}>{labels[status] || status}</span>;
 }
 
 function buildTradeMarkerMap(trades: Array<{ date: string }>): Map<string, { buy?: boolean; sell?: boolean }> {
@@ -87,6 +81,14 @@ function sameJob(lhs: Job | null, rhs: Job | null): boolean {
 }
 
 export default function App() {
+  const { t } = useTranslation();
+  const statusLabels: Record<string, string> = {
+    'queued': t('job.queued'),
+    'running': t('job.running'),
+    'completed': t('job.completed'),
+    'failed': t('job.failed'),
+    'cancelled': t('job.cancelled'),
+  };
   const [runFormDefaults, setRunFormDefaults] = useState<BacktestFormValues>(defaultForm);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -232,20 +234,23 @@ export default function App() {
     if (!result) return { primary: null, secondary: [] };
     // 主指标：最终净值（绝对收益）
     const primary = {
-      label: '最终净值',
+      label: t('kpi.finalValue'),
       value: result.final_value.toFixed(2),
-      sub: `初始 ${result.initial_cash.toFixed(0)} · 收益 ${formatPct(result.total_return_pct)}`,
+      sub: t('kpi.subFormat', {
+        initial: result.initial_cash.toFixed(0),
+        return: formatPct(result.total_return_pct),
+      }),
     };
     // 次级指标：紧凑 chip
     const secondary = [
-      { label: '胜率', value: formatPct(result.win_rate_pct) },
-      { label: '最大回撤', value: formatPct(result.max_drawdown_pct) },
-      { label: '交易次数', value: String(result.trade_count) },
-      { label: '平均评分', value: result.market_score_summary.mean?.toFixed(2) ?? 'N/A' },
-      { label: '起始资金', value: result.initial_cash.toFixed(0) },
+      { label: t('kpi.winRate'), value: formatPct(result.win_rate_pct) },
+      { label: t('kpi.maxDrawdown'), value: formatPct(result.max_drawdown_pct) },
+      { label: t('kpi.tradeCount'), value: String(result.trade_count) },
+      { label: t('kpi.avgScore'), value: result.market_score_summary.mean?.toFixed(2) ?? 'N/A' },
+      { label: t('kpi.initialCash'), value: result.initial_cash.toFixed(0) },
     ];
     return { primary, secondary };
-  }, [result]);
+  }, [result, t]);
 
   const mergedData = useMemo(() => {
     if (!result) return [];
@@ -458,23 +463,23 @@ export default function App() {
         <div className="brand-row">
           <Activity size={22} />
           <div>
-            <h1>QuantX</h1>
-            <p>回测研究工作台</p>
+            <h1>{t('brand.title')}</h1>
+            <p>{t('brand.subtitle')}</p>
           </div>
-          <button className="nav-guide-btn" onClick={() => setShowGuide(true)} title="策略说明">
+          <button className="nav-guide-btn" onClick={() => setShowGuide(true)} title={t('nav.strategyGuide')}>
             <BookOpen size={16} />
-            策略说明
+            {t('nav.strategyGuide')}
           </button>
         </div>
 
-        <div className="view-switch" role="group" aria-label="主视图切换">
+        <div className="view-switch" role="group" aria-label={t('nav.viewSwitch')}>
           <button
             type="button"
             className={activeView === 'backtest' ? 'active' : ''}
             onClick={() => setActiveView('backtest')}
           >
             <LineChart size={16} />
-            回测
+            {t('nav.backtest')}
           </button>
           <button
             type="button"
@@ -482,7 +487,7 @@ export default function App() {
             onClick={() => setActiveView('data')}
           >
             <Database size={16} />
-            数据管理
+            {t('nav.dataMgmt')}
           </button>
         </div>
 
@@ -501,15 +506,15 @@ export default function App() {
 
         <section className="history">
           <div className="history-header">
-            <h2>历史记录</h2>
+            <h2>{t('history.title')}</h2>
             {jobs.length > 0 && (
               <button
                 className="clear-all-btn"
                 onClick={() => setDeleteAllConfirm(true)}
                 disabled={isDeleting || jobs.length === 0}
-                title="清空历史"
+                title={t('history.clear')}
               >
-                清空历史
+                {t('history.clear')}
               </button>
             )}
           </div>
@@ -517,7 +522,7 @@ export default function App() {
             <div key={job.id} className="history-item-wrapper">
               <button className="history-item" onClick={() => setSelectedJob(job)}>
                 <span>{job.symbol} {getStockName(job.symbol)} {job.start_date}-{job.end_date}</span>
-                <StatusBadge status={job.status} />
+                <StatusBadge status={job.status} labels={statusLabels} />
               </button>
               <button
                 className="delete-job-btn"
@@ -543,8 +548,8 @@ export default function App() {
         {selectedJob && (
           <div className="result-header">
             <div>
-              <h2>{selectedJob.symbol} {getStockName(selectedJob.symbol)} 回测</h2>
-              <p>{selectedJob.start_date} 至 {selectedJob.end_date} | {selectedJob.cache_hit ? '缓存命中' : '新任务'} | {getStrategyName(selectedJob.strategy_id)}</p>
+              <h2>{t('result.backtestTitle', { symbol: selectedJob.symbol, name: getStockName(selectedJob.symbol) })}</h2>
+              <p>{selectedJob.start_date} {t('common.to')} {selectedJob.end_date} | {selectedJob.cache_hit ? t('result.cacheHit') : t('result.freshJob')} | {getStrategyName(selectedJob.strategy_id)}</p>
               <p className="result-params">
                 {(() => {
                   try {
@@ -556,7 +561,7 @@ export default function App() {
                 })()}
               </p>
             </div>
-            <StatusBadge status={selectedJob.status} />
+            <StatusBadge status={selectedJob.status} labels={statusLabels} />
           </div>
         )}
 
@@ -582,18 +587,18 @@ export default function App() {
 
             {comparisonJob && (
               <section className="panel">
-                <h3>市场过滤器对比</h3>
+                <h3>{t('comparison.title')}</h3>
                 {comparisonResult ? (
                   <div className="comparison-grid">
-                    <div><span>基础收益</span><strong>{formatPct(result.total_return_pct)}</strong></div>
-                    <div><span>对比收益</span><strong>{formatPct(comparisonResult.total_return_pct)}</strong></div>
-                    <div><span>基础回撤</span><strong>{formatPct(result.max_drawdown_pct)}</strong></div>
-                    <div><span>对比回撤</span><strong>{formatPct(comparisonResult.max_drawdown_pct)}</strong></div>
-                    <div><span>基础交易</span><strong>{result.trade_count}</strong></div>
-                    <div><span>对比交易</span><strong>{comparisonResult.trade_count}</strong></div>
+                    <div><span>{t('comparison.baseReturn')}</span><strong>{formatPct(result.total_return_pct)}</strong></div>
+                    <div><span>{t('comparison.compareReturn')}</span><strong>{formatPct(comparisonResult.total_return_pct)}</strong></div>
+                    <div><span>{t('comparison.baseDrawdown')}</span><strong>{formatPct(result.max_drawdown_pct)}</strong></div>
+                    <div><span>{t('comparison.compareDrawdown')}</span><strong>{formatPct(comparisonResult.max_drawdown_pct)}</strong></div>
+                    <div><span>{t('comparison.baseTrades')}</span><strong>{result.trade_count}</strong></div>
+                    <div><span>{t('comparison.compareTrades')}</span><strong>{comparisonResult.trade_count}</strong></div>
                   </div>
                 ) : (
-                  <p>对比任务 #{comparisonJob.id} 状态：{statusLabels[comparisonJob.status] || comparisonJob.status}</p>
+                  <p>{t('comparison.status', { id: comparisonJob.id, status: statusLabels[comparisonJob.status] || comparisonJob.status })}</p>
                 )}
               </section>
             )}
@@ -650,9 +655,9 @@ export default function App() {
               </>
               ) : (
                 <section className="panel">
-                  <h3>上证指数</h3>
+                  <h3>{t('panel.indexFallbackTitle')}</h3>
                   <p style={{ color: '#627282' }}>
-                    上证指数数据加载失败，可能是网络或数据源问题，请重试回测。
+                    {t('panel.indexFallbackDesc')}
                   </p>
                   <button
                     className="secondary"
@@ -660,16 +665,16 @@ export default function App() {
                     onClick={() => selectedJob && submit(runFormDefaults, true)}
                     disabled={submitting || !selectedJob}
                   >
-                    <RefreshCcw size={16} /> 重新运行
+                    <RefreshCcw size={16} /> {t('panel.rerun')}
                   </button>
                 </section>
               )
             )}
 
             <section className="panel">
-              <h3>交易记录</h3>
+              <h3>{t('panel.trades')}</h3>
               <table>
-                <thead><tr><th>日期</th><th>盈亏</th><th>盈亏(含手续费)</th><th>持仓周期</th></tr></thead>
+                <thead><tr><th>{t('trades.date')}</th><th>{t('trades.pnl')}</th><th>{t('trades.pnlComm')}</th><th>{t('trades.holdingPeriod')}</th></tr></thead>
                 <tbody>
                   {result.trades.map((trade, index) => (
                     <tr key={`${trade.date}-${index}`}>
@@ -684,7 +689,7 @@ export default function App() {
             </section>
           </>
         ) : (
-          <div className="empty-state">提交任务或选择已完成任务后可查看结果。</div>
+          <div className="empty-state">{t('result.empty')}</div>
         )}
           </>
         )}
@@ -693,22 +698,22 @@ export default function App() {
       {deleteConfirmJobId !== null && (
         <div className="modal-overlay" onClick={() => setDeleteConfirmJobId(null)}>
           <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>确认删除</h3>
-            <p>确定要删除这个回测任务吗？此操作无法撤销。</p>
+            <h3>{t('modal.deleteTitle')}</h3>
+            <p>{t('modal.deleteBody')}</p>
             <div className="modal-buttons">
               <button
                 className="modal-cancel"
                 onClick={() => setDeleteConfirmJobId(null)}
                 disabled={isDeleting}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 className="modal-delete"
                 onClick={() => handleDeleteJob(deleteConfirmJobId)}
                 disabled={isDeleting}
               >
-                {isDeleting ? '删除中...' : '删除'}
+                {isDeleting ? t('common.deleting') : t('common.delete')}
               </button>
             </div>
           </div>
@@ -718,22 +723,22 @@ export default function App() {
       {deleteAllConfirm && (
         <div className="modal-overlay" onClick={() => setDeleteAllConfirm(false)}>
           <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>清空历史</h3>
-            <p>确定要删除所有回测任务吗？此操作无法撤销。</p>
+            <h3>{t('modal.clearAllTitle')}</h3>
+            <p>{t('modal.clearAllBody')}</p>
             <div className="modal-buttons">
               <button
                 className="modal-cancel"
                 onClick={() => setDeleteAllConfirm(false)}
                 disabled={isDeleting}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 className="modal-delete"
                 onClick={handleDeleteAllJobs}
                 disabled={isDeleting}
               >
-                {isDeleting ? '删除中...' : '删除全部'}
+                {isDeleting ? t('common.deleting') : t('common.deleteAll')}
               </button>
             </div>
           </div>
