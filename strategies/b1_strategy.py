@@ -148,7 +148,7 @@ class B1Strategy(bt.Strategy):
 
 B1_STRATEGY_SPEC = StrategySpec(
     id='b1_strategy',
-    name='B1 Strategy (少妇战法)',
+    name='B1 Strategy',
     description='Trend-following with oversold pullback entry. Market timing via 120-day MA, entry via 7 conditions.',
     strategy_class=B1Strategy,
     params=(

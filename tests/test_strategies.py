@@ -78,7 +78,7 @@ class TestB1StrategySpec:
 
     def test_spec_name(self):
         """Test spec has correct name"""
-        assert B1_STRATEGY_SPEC.name == 'B1 Strategy (少妇战法)'
+        assert B1_STRATEGY_SPEC.name == 'B1 Strategy'
 
     def test_spec_description(self):
         """Test spec has description"""

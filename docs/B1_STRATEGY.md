@@ -1,4 +1,4 @@
-# B1 Strategy (少妇战法) Documentation
+# B1 Strategy Documentation
 
 > **Core Principle: "Follow the major trend, counter the minor trend"** (顺大势，逆小势)
 >
@@ -285,7 +285,7 @@ The B1 Strategy is implemented in `strategies/b1_strategy.py`:
 
 | Strategy | Entry | Exit | Holding | Frequency |
 |----------|-------|------|---------|-----------|
-| B1 (少妇战法) | 7 conditions + oversold | MA crossover | 3-10 days | Low |
+| B1 | 7 conditions + oversold | MA crossover | 3-10 days | Low |
 | Swing MA+Bollinger | MA + Bollinger bands | Bollinger exit | 5-15 days | Medium |
 | Bollinger Reversal | Bollinger extremes | Bollinger exit | 1-5 days | High |
 
@@ -293,7 +293,7 @@ The B1 Strategy is implemented in `strategies/b1_strategy.py`:
 
 ## References
 
-- **Original Strategy:** B站 UP 主 zettaranc (Z哥) 的少妇战法
+- **Original Strategy:** B站 UP 主 zettaranc (Z哥) 的 B1 策略
 - **Core Concept:** Trend-following + oversold pullback entry
 - **Indicators:** SMA, BBI, KDJ, Volatility, Volume
 - **Market Timing:** Shanghai Composite 120-day MA
@@ -305,7 +305,7 @@ The B1 Strategy is implemented in `strategies/b1_strategy.py`:
 When running backtests, track these metrics:
 
 ```
-Strategy: B1 Strategy (少妇战法)
+Strategy: B1 Strategy
 Symbol: [STOCK_CODE]
 Period: [START_DATE] - [END_DATE]
 Initial Cash: [AMOUNT]
