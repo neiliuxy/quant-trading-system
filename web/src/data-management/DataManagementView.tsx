@@ -39,7 +39,6 @@ export default function DataManagementView() {
   const [error, setError] = useState<string | null>(null);
   const [cacheError, setCacheError] = useState<string | null>(null);
   const [pollingError, setPollingError] = useState<string | null>(null);
-  const [lastCacheQuery, setLastCacheQuery] = useState<CacheQueryParams | null>(null);
   const lastCacheQueryRef = useRef<CacheQueryParams | null>(null);
 
   const selectedDataset = useMemo(
@@ -55,7 +54,6 @@ export default function DataManagementView() {
   async function queryCache(params: CacheQueryParams) {
     setCacheLoading(true);
     setCacheError(null);
-    setLastCacheQuery(params);
     lastCacheQueryRef.current = params;
     try {
       const rows = await listCache(params);
