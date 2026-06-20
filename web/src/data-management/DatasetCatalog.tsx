@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Globe, Search, TrendingUp } from 'lucide-react';
 import type { DataSegment, DatasetSpec } from '../types';
 
@@ -10,11 +11,6 @@ interface DatasetCatalogProps {
   onChangeSegment: (segment: DataSegment) => void;
   onSelectDataset: (datasetType: string) => void;
 }
-
-const segmentLabels: Record<DataSegment, string> = {
-  stock: '个股',
-  index: '大盘',
-};
 
 function datasetSegment(dataset: DatasetSpec): DataSegment {
   return dataset.symbol_required ? 'stock' : 'index';
@@ -36,6 +32,7 @@ export default function DatasetCatalog({
   onChangeSegment,
   onSelectDataset,
 }: DatasetCatalogProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const visibleDatasets = datasets.filter((dataset) => datasetSegment(dataset) === segment);
 
@@ -53,13 +50,13 @@ export default function DatasetCatalog({
     <section className="data-panel data-catalog">
       <div className="data-panel-header">
         <div>
-          <h3>数据集目录</h3>
-          <p className="muted">{visibleDatasets.length} 个可用数据集</p>
+          <h3>{t('dataMgmt.catalogTitle')}</h3>
+          <p className="muted">{t('dataMgmt.availableCount', { count: visibleDatasets.length })}</p>
         </div>
       </div>
 
       <div className="segment-control" role="group" aria-label="Data segment">
-        {(Object.keys(segmentLabels) as DataSegment[]).map((key) => (
+        {(['stock', 'index'] as DataSegment[]).map((key) => (
           <button
             key={key}
             type="button"
@@ -67,7 +64,7 @@ export default function DatasetCatalog({
             onClick={() => onChangeSegment(key)}
           >
             {key === 'stock' ? <TrendingUp size={14} /> : <Globe size={14} />}
-            {segmentLabels[key]}
+            {t(`dataMgmt.segment.${key}`)}
           </button>
         ))}
       </div>
@@ -76,7 +73,7 @@ export default function DatasetCatalog({
         <Search size={14} />
         <input
           type="text"
-          placeholder="搜索数据集..."
+          placeholder={t('dataMgmt.searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -85,12 +82,12 @@ export default function DatasetCatalog({
       {loading && (
         <div className="state-message">
           <span className="spinner" />
-          数据集加载中...
+          {t('dataMgmt.catalogLoading')}
         </div>
       )}
 
       {!loading && filteredDatasets.length === 0 && (
-        <p className="muted">{query ? '没有匹配的数据集' : '当前分段没有可用数据集'}</p>
+        <p className="muted">{query ? t('dataMgmt.noMatch') : t('dataMgmt.segmentEmpty')}</p>
       )}
 
       <div className="dataset-list">
@@ -110,7 +107,7 @@ export default function DatasetCatalog({
             </div>
             <span className="dataset-meta">
               <span className="dataset-source">{dataset.source_name}</span>
-              <span className="dataset-ttl">TTL {formatTTL(dataset.ttl_seconds)}</span>
+              <span className="dataset-ttl">{t('dataMgmt.ttl', { value: formatTTL(dataset.ttl_seconds) })}</span>
             </span>
           </button>
         ))}

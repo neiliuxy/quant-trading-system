@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertCircle, Database } from 'lucide-react';
 import { createRefresh, getRefresh, listCache, listDatasets } from '../api';
 import type { CacheEntry, CacheQueryParams, DataRefresh, DataRefreshPayload, DataSegment, DatasetSpec } from '../types';
@@ -10,12 +11,12 @@ function segmentForDataset(dataset: DatasetSpec): DataSegment {
   return dataset.symbol_required ? 'stock' : 'index';
 }
 
-function messageFromError(error: unknown): string {
+function messageFromError(error: unknown, refreshInProgressLabel: string): string {
   const message = error instanceof Error ? error.message : String(error);
   try {
     const parsed = JSON.parse(message);
     if (parsed?.detail?.error_type === 'refresh_in_progress') {
-      return '该数据范围已有刷新任务在运行';
+      return refreshInProgressLabel;
     }
     if (parsed?.detail?.message) {
       return String(parsed.detail.message);
@@ -27,6 +28,7 @@ function messageFromError(error: unknown): string {
 }
 
 export default function DataManagementView() {
+  const { t } = useTranslation();
   const [segment, setSegment] = useState<DataSegment>('stock');
   const [datasets, setDatasets] = useState<DatasetSpec[]>([]);
   const [selectedDatasetType, setSelectedDatasetType] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export default function DataManagementView() {
       setCacheEntries(rows);
     } catch (err) {
       setCacheEntries([]);
-      setCacheError(messageFromError(err));
+      setCacheError(messageFromError(err, t('dataMgmt.refreshInProgress')));
     } finally {
       setCacheLoading(false);
     }
@@ -81,7 +83,7 @@ export default function DataManagementView() {
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(messageFromError(err));
+        if (!cancelled) setError(messageFromError(err, t('dataMgmt.refreshInProgress')));
       })
       .finally(() => {
         if (!cancelled) setDatasetsLoading(false);
@@ -121,7 +123,7 @@ export default function DataManagementView() {
         setPollingIds((prev) => new Set(prev).add(refresh.id));
       }
     } catch (err) {
-      setError(messageFromError(err));
+      setError(messageFromError(err, t('dataMgmt.refreshInProgress')));
     } finally {
       setRefreshing(false);
     }
@@ -149,7 +151,7 @@ export default function DataManagementView() {
             }
           })
           .catch((err) => {
-            setPollingError(messageFromError(err));
+            setPollingError(messageFromError(err, t('dataMgmt.refreshInProgress')));
             setPollingIds((prev) => {
               const next = new Set(prev);
               next.delete(refreshId);
@@ -167,8 +169,8 @@ export default function DataManagementView() {
     <div className="data-management-view">
       <div className="result-header">
         <div>
-          <h2>数据管理</h2>
-          <p>数据集、缓存与刷新任务</p>
+          <h2>{t('dataMgmt.title')}</h2>
+          <p>{t('dataMgmt.subtitle')}</p>
         </div>
       </div>
       {bannerError && (
@@ -182,7 +184,7 @@ export default function DataManagementView() {
               setError(null);
               setPollingError(null);
             }}
-            aria-label="关闭错误提示"
+            aria-label={t('dataMgmt.errorClose')}
           >
             ×
           </button>
@@ -219,7 +221,7 @@ export default function DataManagementView() {
           ) : (
             <section className="data-panel empty-state-panel">
               <Database size={40} />
-              <p>请选择一个数据集以查看缓存与刷新</p>
+              <p>{t('dataMgmt.selectDatasetPrompt')}</p>
             </section>
           )}
         </div>

@@ -1,5 +1,7 @@
 import type { FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ClipboardCopy, FileSpreadsheet, RefreshCcw, Search } from 'lucide-react';
+import { formatNumber } from '../i18n/locale';
 import type { CacheEntry, CacheQueryParams, DataRefreshPayload, DatasetSpec } from '../types';
 
 interface CacheTableProps {
@@ -21,10 +23,6 @@ function formatDate(value: string): string {
   return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
 }
 
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat('zh-CN').format(value);
-}
-
 function copyToClipboard(text: string) {
   if (navigator.clipboard) {
     void navigator.clipboard.writeText(text);
@@ -40,11 +38,12 @@ export default function CacheTable({
   onQuery,
   onRefresh,
 }: CacheTableProps) {
+  const { t } = useTranslation();
   if (!selectedDataset) {
     return (
       <section className="data-panel empty-state-panel">
         <FileSpreadsheet size={40} />
-        <p>请选择一个数据集</p>
+        <p>{t('dataMgmt.selectDataset')}</p>
       </section>
     );
   }
@@ -78,7 +77,7 @@ export default function CacheTable({
       <section className="data-panel cache-query-panel">
         <div className="data-panel-header">
           <div>
-            <h3>查询缓存</h3>
+            <h3>{t('dataMgmt.cacheQuery')}</h3>
             <p className="muted">{selectedDataset.label} / {selectedDataset.dataset_type}</p>
           </div>
         </div>
@@ -86,21 +85,21 @@ export default function CacheTable({
         <form className="data-filter-form" onSubmit={queryCache}>
           {selectedDataset.symbol_required && (
             <label>
-              代码
+              {t('dataMgmt.symbol')}
               <input name="symbol" placeholder="000001" />
             </label>
           )}
           <label>
-            开始日期
+            {t('dataMgmt.start')}
             <input name="start" type="date" />
           </label>
           <label>
-            结束日期
+            {t('dataMgmt.end')}
             <input name="end" type="date" />
           </label>
           <button className="secondary" type="submit">
             <Search size={16} />
-            查询缓存
+            {t('dataMgmt.cacheQuery')}
           </button>
         </form>
       </section>
@@ -108,22 +107,22 @@ export default function CacheTable({
       <section className="data-panel cache-results-panel">
         <div className="data-panel-header">
           <div>
-            <h3>缓存结果</h3>
-            <p className="muted">{entries.length} 条记录</p>
+            <h3>{t('dataMgmt.cacheResults')}</h3>
+            <p className="muted">{t('dataMgmt.recordsCount', { count: entries.length })}</p>
           </div>
         </div>
 
         {loading && (
           <div className="state-message">
             <span className="spinner" />
-            缓存加载中...
+            {t('dataMgmt.cacheLoading')}
           </div>
         )}
         {error && <div className="error">{error}</div>}
         {!loading && !error && entries.length === 0 && (
           <div className="state-message">
             <Search size={20} />
-            没有匹配的缓存条目
+            {t('dataMgmt.noCacheEntries')}
           </div>
         )}
         {!loading && !error && entries.length > 0 && (
@@ -131,20 +130,20 @@ export default function CacheTable({
             <table>
               <thead>
                 <tr>
-                  <th>数据集</th>
-                  <th>代码</th>
-                  <th>日期范围</th>
-                  <th className="numeric">行数</th>
-                  <th>来源</th>
-                  <th>刷新时间</th>
-                  <th>路径</th>
+                  <th>{t('dataMgmt.dataset')}</th>
+                  <th>{t('dataMgmt.symbol')}</th>
+                  <th>{t('dataMgmt.dateRange')}</th>
+                  <th className="numeric">{t('dataMgmt.rowCount')}</th>
+                  <th>{t('dataMgmt.source')}</th>
+                  <th>{t('dataMgmt.refreshedAt')}</th>
+                  <th>{t('dataMgmt.path')}</th>
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.id}>
                     <td>{entry.dataset_type}</td>
-                    <td>{entry.symbol ?? '全局'}</td>
+                    <td>{entry.symbol ?? t('dataMgmt.symbolAll')}</td>
                     <td>{formatDate(entry.start_date)} - {formatDate(entry.end_date)}</td>
                     <td className="numeric">{formatNumber(entry.row_count)}</td>
                     <td>
@@ -156,7 +155,7 @@ export default function CacheTable({
                       <button
                         type="button"
                         className="icon-copy"
-                        title="复制路径"
+                        title={t('dataMgmt.copyPath')}
                         onClick={() => copyToClipboard(entry.file_path)}
                       >
                         <ClipboardCopy size={14} />
@@ -173,39 +172,39 @@ export default function CacheTable({
       <section className="data-panel cache-refresh-panel">
         <div className="data-panel-header">
           <div>
-            <h3>刷新数据</h3>
-            <p className="muted">从数据源拉取最新数据</p>
+            <h3>{t('dataMgmt.refreshTitle')}</h3>
+            <p className="muted">{t('dataMgmt.refreshDesc')}</p>
           </div>
         </div>
 
         <form className="refresh-form" onSubmit={refreshData}>
           {selectedDataset.symbol_required && (
             <label>
-              刷新代码
+              {t('dataMgmt.refreshSymbol')}
               <input name="refreshSymbol" placeholder="000001" />
             </label>
           )}
           <label>
-            刷新开始
+            {t('dataMgmt.refreshStart')}
             <input name="refreshStart" type="date" required />
           </label>
           <label>
-            刷新结束
+            {t('dataMgmt.refreshEnd')}
             <input name="refreshEnd" type="date" required />
           </label>
           <label>
-            频率
+            {t('dataMgmt.frequency')}
             <select name="frequency" defaultValue="daily">
-              <option value="daily">每日</option>
+              <option value="daily">{t('dataMgmt.frequencyDaily')}</option>
             </select>
           </label>
           <label className="check-row">
             <input name="forceRefresh" type="checkbox" />
-            强制刷新
+            {t('dataMgmt.forceRefresh')}
           </label>
           <button className="primary" type="submit" disabled={refreshing}>
             <RefreshCcw size={16} className={refreshing ? 'spin' : ''} />
-            {refreshing ? '刷新中...' : '刷新数据'}
+            {refreshing ? t('dataMgmt.refreshing') : t('dataMgmt.refreshSubmit')}
           </button>
         </form>
       </section>

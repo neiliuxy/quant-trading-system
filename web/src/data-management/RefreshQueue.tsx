@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { History, Loader2 } from 'lucide-react';
 import type { DataRefresh } from '../types';
 
@@ -8,19 +9,19 @@ interface RefreshQueueProps {
   onSelectRefresh: (refreshId: number) => void;
 }
 
-function relativeTime(value: string): string {
+function relativeTime(value: string, t: (key: string) => string): string {
   if (!value) return '-';
   const date = new Date(value.replace(' ', 'T'));
   if (Number.isNaN(date.getTime())) return value;
   const diff = Math.max(0, Date.now() - date.getTime());
   const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return `${seconds} 秒前`;
+  if (seconds < 60) return `${seconds} ${t('common.secondsAgo')}`;
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} 分钟前`;
+  if (minutes < 60) return `${minutes} ${t('common.minutesAgo')}`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} 小时前`;
+  if (hours < 24) return `${hours} ${t('common.hoursAgo')}`;
   const days = Math.floor(hours / 24);
-  return `${days} 天前`;
+  return `${days} ${t('common.daysAgo')}`;
 }
 
 function duration(startedAt: string | null, finishedAt: string | null): string {
@@ -41,21 +42,22 @@ export default function RefreshQueue({
   pollingIds,
   onSelectRefresh,
 }: RefreshQueueProps) {
+  const { t } = useTranslation();
   const selected = refreshes.find((refresh) => refresh.id === selectedRefreshId) ?? refreshes[0] ?? null;
 
   return (
     <aside className="data-panel refresh-queue">
       <div className="data-panel-header">
         <div>
-          <h3>刷新队列</h3>
-          <p className="muted">{refreshes.length} 个任务</p>
+          <h3>{t('dataMgmt.refreshQueueTitle')}</h3>
+          <p className="muted">{t('dataMgmt.refreshCount', { count: refreshes.length })}</p>
         </div>
       </div>
 
       {refreshes.length === 0 && (
         <div className="state-message">
           <History size={20} />
-          当前会话尚未发起刷新任务
+          {t('dataMgmt.refreshQueueEmpty')}
         </div>
       )}
 
@@ -72,11 +74,11 @@ export default function RefreshQueue({
               <span className={`status status-${refresh.status}`}>{refresh.status}</span>
             </div>
             <div className="refresh-item-bottom">
-              <span className="refresh-time">{relativeTime(refresh.created_at)}</span>
+              <span className="refresh-time">{relativeTime(refresh.created_at, t)}</span>
               {pollingIds.has(refresh.id) && (
                 <span className="polling-label">
                   <Loader2 size={12} className="spin" />
-                  轮询中
+                  {t('dataMgmt.polling')}
                 </span>
               )}
             </div>
@@ -86,25 +88,25 @@ export default function RefreshQueue({
 
       {selected && (
         <div className="refresh-detail-panel">
-          <h4>任务详情 #{selected.id}</h4>
+          <h4>{t('dataMgmt.taskDetail', { id: selected.id })}</h4>
           <dl className="refresh-detail">
-            <dt>状态</dt>
+            <dt>{t('dataMgmt.status')}</dt>
             <dd>
               <span className={`status status-${selected.status}`}>{selected.status}</span>
             </dd>
-            <dt>数据集</dt>
+            <dt>{t('dataMgmt.taskDataset')}</dt>
             <dd>{selected.dataset_type}</dd>
-            <dt>代码</dt>
-            <dd>{selected.symbol ?? '全局'}</dd>
-            <dt>日期范围</dt>
+            <dt>{t('dataMgmt.symbol')}</dt>
+            <dd>{selected.symbol ?? t('dataMgmt.symbolAll')}</dd>
+            <dt>{t('dataMgmt.dateRange')}</dt>
             <dd>{selected.start_date} - {selected.end_date}</dd>
-            <dt>耗时</dt>
+            <dt>{t('dataMgmt.duration')}</dt>
             <dd>{duration(selected.started_at, selected.finished_at)}</dd>
-            <dt>缓存命中</dt>
-            <dd>{selected.cache_hit ? '是' : '否'}</dd>
+            <dt>{t('dataMgmt.cacheHit')}</dt>
+            <dd>{selected.cache_hit ? t('common.yes') : t('common.no')}</dd>
             {selected.output_cache_path && (
               <>
-                <dt>输出路径</dt>
+                <dt>{t('dataMgmt.outputPath')}</dt>
                 <dd className="mono-cell" title={selected.output_cache_path}>
                   {selected.output_cache_path}
                 </dd>
@@ -112,13 +114,13 @@ export default function RefreshQueue({
             )}
             {selected.error_type && (
               <>
-                <dt>错误类型</dt>
+                <dt>{t('dataMgmt.errorType')}</dt>
                 <dd className="error-text">{selected.error_type}</dd>
               </>
             )}
             {selected.error_message && (
               <>
-                <dt>错误信息</dt>
+                <dt>{t('dataMgmt.errorMessage')}</dt>
                 <dd className="error-text">{selected.error_message}</dd>
               </>
             )}
