@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import ChartDateRangeControl from '../ChartDateRangeControl';
 import { buildKlineSeries, buildTradeMarkers, type KlineRow, type TradeMarker } from '../charts/buildSeries';
@@ -42,7 +42,8 @@ function fmt(v: number | null) {
 }
 
 export function StockKlinePanel(props: StockKlinePanelProps) {
-  const ref = useRef<HTMLDivElement>(null);
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  const ref = useCallback((node: HTMLDivElement | null) => setContainer(node), []);
 
   const klineData: KlineRow[] = useMemo(() => buildKlineSeries(props.data), [props.data]);
 
@@ -56,7 +57,7 @@ export function StockKlinePanel(props: StockKlinePanelProps) {
   );
 
   const { hoverInfo } = useKlineChart({
-    container: ref.current,
+    container,
     data: klineData,
     maVisibility: props.maVisibility,
     trades: markers,
