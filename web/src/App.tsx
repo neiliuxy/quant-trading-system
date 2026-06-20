@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
-import { Activity, BookOpen, Play, RefreshCcw, Trash2 } from 'lucide-react';
+import { Activity, BookOpen, Database, LineChart, Play, RefreshCcw, Trash2 } from 'lucide-react';
 import { createJob, createMarketFilterComparison, deleteJob, deleteAllJobs, getJob, getResult, getStocks, listJobs, listStrategies } from './api';
 import type { BacktestFormValues, BacktestResult, Job, StrategySpec } from './types';
 import ChartDateRangeControl from './ChartDateRangeControl';
@@ -16,6 +16,7 @@ import { IndexIndicatorPanel } from './panels/IndexIndicatorPanel';
 import { StockKlinePanel } from './panels/StockKlinePanel';
 import type { MaVisibility } from './panels/StockKlinePanel';
 import { IndexKlinePanel } from './panels/IndexKlinePanel';
+import DataManagementView from './data-management/DataManagementView';
 
 const defaultForm: BacktestFormValues = {
   symbol: '000001',
@@ -127,6 +128,7 @@ export default function App() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [stockLookup, setStockLookup] = useState<Map<string, string>>(new Map());
+  const [activeView, setActiveView] = useState<'backtest' | 'data'>('backtest');
 
   function getStrategyName(id: string): string {
     const found = strategies.find(s => s.id === id);
@@ -457,6 +459,27 @@ export default function App() {
           </button>
         </div>
 
+        <div className="view-switch" role="group" aria-label="Primary view">
+          <button
+            type="button"
+            className={activeView === 'backtest' ? 'active' : ''}
+            onClick={() => setActiveView('backtest')}
+          >
+            <LineChart size={16} />
+            Backtest
+          </button>
+          <button
+            type="button"
+            className={activeView === 'data' ? 'active' : ''}
+            onClick={() => setActiveView('data')}
+          >
+            <Database size={16} />
+            Data Management
+          </button>
+        </div>
+
+        {activeView === 'backtest' && (
+        <>
         <RunForm
           initialValue={runFormDefaults}
           strategies={strategies}
@@ -497,9 +520,15 @@ export default function App() {
             </div>
           ))}
         </section>
+        </>
+        )}
       </aside>
 
       <section className="content-panel">
+        {activeView === 'data' ? (
+          <DataManagementView />
+        ) : (
+          <>
         {error && <div className="error">{error}</div>}
         {selectedJob && (
           <div className="result-header">
@@ -637,6 +666,8 @@ export default function App() {
           </>
         ) : (
           <div className="empty-state">提交任务或选择已完成任务后可查看结果。</div>
+        )}
+          </>
         )}
       </section>
 
