@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { RefreshCcw, Search } from 'lucide-react';
+import { ClipboardCopy, FileSpreadsheet, RefreshCcw, Search } from 'lucide-react';
 import type { CacheEntry, CacheQueryParams, DataRefreshPayload, DatasetSpec } from '../types';
 
 interface CacheTableProps {
@@ -16,6 +16,21 @@ function compactDate(value: string): string {
   return value.replace(/-/g, '');
 }
 
+function formatDate(value: string): string {
+  if (!value || value.length !== 8) return value;
+  return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('zh-CN').format(value);
+}
+
+function copyToClipboard(text: string) {
+  if (navigator.clipboard) {
+    void navigator.clipboard.writeText(text);
+  }
+}
+
 export default function CacheTable({
   selectedDataset,
   entries,
@@ -27,9 +42,9 @@ export default function CacheTable({
 }: CacheTableProps) {
   if (!selectedDataset) {
     return (
-      <section className="data-panel cache-workspace">
-        <h3>Cache Workspace</h3>
-        <p className="muted">请选择一个数据集</p>
+      <section className="data-panel empty-state-panel">
+        <FileSpreadsheet size={40} />
+        <p>请选择一个数据集</p>
       </section>
     );
   }
@@ -59,101 +74,142 @@ export default function CacheTable({
   }
 
   return (
-    <section className="data-panel cache-workspace">
-      <div className="data-panel-header">
-        <div>
-          <h3>Cache Workspace</h3>
-          <p className="muted">{selectedDataset.label} / {selectedDataset.dataset_type}</p>
+    <div className="cache-table-stack">
+      <section className="data-panel cache-query-panel">
+        <div className="data-panel-header">
+          <div>
+            <h3>查询缓存</h3>
+            <p className="muted">{selectedDataset.label} / {selectedDataset.dataset_type}</p>
+          </div>
         </div>
-      </div>
 
-      <form className="data-filter-form" onSubmit={queryCache}>
-        {selectedDataset.symbol_required && (
+        <form className="data-filter-form" onSubmit={queryCache}>
+          {selectedDataset.symbol_required && (
+            <label>
+              Symbol
+              <input name="symbol" placeholder="000001" />
+            </label>
+          )}
           <label>
-            Symbol
-            <input name="symbol" placeholder="000001" />
+            Start
+            <input name="start" type="date" />
           </label>
-        )}
-        <label>
-          Start
-          <input name="start" type="date" />
-        </label>
-        <label>
-          End
-          <input name="end" type="date" />
-        </label>
-        <button className="secondary" type="submit">
-          <Search size={16} />
-          查询缓存
-        </button>
-      </form>
+          <label>
+            End
+            <input name="end" type="date" />
+          </label>
+          <button className="secondary" type="submit">
+            <Search size={16} />
+            查询缓存
+          </button>
+        </form>
+      </section>
 
-      {loading && <p className="muted">缓存加载中...</p>}
-      {error && <div className="error">{error}</div>}
-      {!loading && !error && entries.length === 0 && <p className="muted">没有匹配的缓存条目</p>}
-      {!loading && !error && entries.length > 0 && (
-        <div className="data-table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Dataset</th>
-                <th>Symbol</th>
-                <th>Range</th>
-                <th>Rows</th>
-                <th>Source</th>
-                <th>Refreshed</th>
-                <th>Path</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id}>
-                  <td>{entry.dataset_type}</td>
-                  <td>{entry.symbol ?? 'global'}</td>
-                  <td>{entry.start_date}-{entry.end_date}</td>
-                  <td>{entry.row_count}</td>
-                  <td>{entry.source_name}</td>
-                  <td>{entry.refreshed_at}</td>
-                  <td className="mono-cell">{entry.file_path}</td>
+      <section className="data-panel cache-results-panel">
+        <div className="data-panel-header">
+          <div>
+            <h3>缓存结果</h3>
+            <p className="muted">{entries.length} 条记录</p>
+          </div>
+        </div>
+
+        {loading && (
+          <div className="state-message">
+            <span className="spinner" />
+            缓存加载中...
+          </div>
+        )}
+        {error && <div className="error">{error}</div>}
+        {!loading && !error && entries.length === 0 && (
+          <div className="state-message">
+            <Search size={20} />
+            没有匹配的缓存条目
+          </div>
+        )}
+        {!loading && !error && entries.length > 0 && (
+          <div className="data-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Dataset</th>
+                  <th>Symbol</th>
+                  <th>Range</th>
+                  <th className="numeric">Rows</th>
+                  <th>Source</th>
+                  <th>Refreshed</th>
+                  <th>Path</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <form className="refresh-form" onSubmit={refreshData}>
-        <h4>Refresh</h4>
-        {selectedDataset.symbol_required && (
-          <label>
-            Refresh symbol
-            <input name="refreshSymbol" placeholder="000001" />
-          </label>
+              </thead>
+              <tbody>
+                {entries.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>{entry.dataset_type}</td>
+                    <td>{entry.symbol ?? 'global'}</td>
+                    <td>{formatDate(entry.start_date)} - {formatDate(entry.end_date)}</td>
+                    <td className="numeric">{formatNumber(entry.row_count)}</td>
+                    <td>
+                      <span className="source-badge">{entry.source_name}</span>
+                    </td>
+                    <td>{entry.refreshed_at}</td>
+                    <td className="mono-cell">
+                      <span title={entry.file_path}>{entry.file_path}</span>
+                      <button
+                        type="button"
+                        className="icon-copy"
+                        title="复制路径"
+                        onClick={() => copyToClipboard(entry.file_path)}
+                      >
+                        <ClipboardCopy size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-        <label>
-          Refresh start
-          <input name="refreshStart" type="date" required />
-        </label>
-        <label>
-          Refresh end
-          <input name="refreshEnd" type="date" required />
-        </label>
-        <label>
-          Frequency
-          <select name="frequency" defaultValue="daily">
-            <option value="daily">daily</option>
-          </select>
-        </label>
-        <label className="check-row">
-          <input name="forceRefresh" type="checkbox" />
-          Force refresh
-        </label>
-        <button className="primary" type="submit" disabled={refreshing}>
-          <RefreshCcw size={16} />
-          {refreshing ? '刷新中...' : '刷新数据'}
-        </button>
-      </form>
-    </section>
+      </section>
+
+      <section className="data-panel cache-refresh-panel">
+        <div className="data-panel-header">
+          <div>
+            <h3>刷新数据</h3>
+            <p className="muted">从数据源拉取最新数据</p>
+          </div>
+        </div>
+
+        <form className="refresh-form" onSubmit={refreshData}>
+          {selectedDataset.symbol_required && (
+            <label>
+              Refresh symbol
+              <input name="refreshSymbol" placeholder="000001" />
+            </label>
+          )}
+          <label>
+            Refresh start
+            <input name="refreshStart" type="date" required />
+          </label>
+          <label>
+            Refresh end
+            <input name="refreshEnd" type="date" required />
+          </label>
+          <label>
+            Frequency
+            <select name="frequency" defaultValue="daily">
+              <option value="daily">daily</option>
+            </select>
+          </label>
+          <label className="check-row">
+            <input name="forceRefresh" type="checkbox" />
+            Force refresh
+          </label>
+          <button className="primary" type="submit" disabled={refreshing}>
+            <RefreshCcw size={16} className={refreshing ? 'spin' : ''} />
+            {refreshing ? '刷新中...' : '刷新数据'}
+          </button>
+        </form>
+      </section>
+    </div>
   );
 }
 

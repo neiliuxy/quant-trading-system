@@ -40,7 +40,7 @@ describe('DatasetCatalog', () => {
     expect(screen.getByText('A股日线')).toBeInTheDocument();
     expect(screen.queryByText('大盘指数')).not.toBeInTheDocument();
     expect(screen.getByText('akshare')).toBeInTheDocument();
-    expect(screen.getByText('TTL 86400s')).toBeInTheDocument();
+    expect(screen.getByText('TTL 1d')).toBeInTheDocument();
   });
 
   it('emits segment and dataset selection events', () => {

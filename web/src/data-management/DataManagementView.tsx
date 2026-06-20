@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, Database } from 'lucide-react';
 import { createRefresh, getRefresh, listCache, listDatasets } from '../api';
 import type { CacheEntry, CacheQueryParams, DataRefresh, DataRefreshPayload, DataSegment, DatasetSpec } from '../types';
 import CacheTable from './CacheTable';
@@ -160,6 +161,8 @@ export default function DataManagementView() {
     return () => window.clearInterval(handle);
   }, [pollingIds]);
 
+  const bannerError = error || pollingError;
+
   return (
     <div className="data-management-view">
       <div className="result-header">
@@ -168,32 +171,58 @@ export default function DataManagementView() {
           <p>数据集、缓存与刷新任务</p>
         </div>
       </div>
-      {error && <div className="error">{error}</div>}
-      {pollingError && <div className="error">{pollingError}</div>}
+      {bannerError && (
+        <div className="error-banner">
+          <AlertCircle size={18} />
+          <span>{bannerError}</span>
+          <button
+            type="button"
+            className="error-banner-close"
+            onClick={() => {
+              setError(null);
+              setPollingError(null);
+            }}
+            aria-label="关闭错误提示"
+          >
+            ×
+          </button>
+        </div>
+      )}
       <div className="data-management-grid">
-        <DatasetCatalog
-          segment={segment}
-          datasets={visibleDatasets}
-          selectedDatasetType={selectedDatasetType}
-          loading={datasetsLoading}
-          onChangeSegment={handleChangeSegment}
-          onSelectDataset={handleSelectDataset}
-        />
-        <CacheTable
-          selectedDataset={selectedDataset}
-          entries={cacheEntries}
-          loading={cacheLoading}
-          error={cacheError}
-          onQuery={queryCache}
-          onRefresh={handleRefresh}
-          refreshing={refreshing}
-        />
-        <RefreshQueue
-          refreshes={refreshes}
-          selectedRefreshId={selectedRefreshId}
-          onSelectRefresh={setSelectedRefreshId}
-          pollingIds={pollingIds}
-        />
+        <div className="data-left-column">
+          <DatasetCatalog
+            segment={segment}
+            datasets={visibleDatasets}
+            selectedDatasetType={selectedDatasetType}
+            loading={datasetsLoading}
+            onChangeSegment={handleChangeSegment}
+            onSelectDataset={handleSelectDataset}
+          />
+          <RefreshQueue
+            refreshes={refreshes}
+            selectedRefreshId={selectedRefreshId}
+            onSelectRefresh={setSelectedRefreshId}
+            pollingIds={pollingIds}
+          />
+        </div>
+        <div className="data-right-column">
+          {selectedDataset ? (
+            <CacheTable
+              selectedDataset={selectedDataset}
+              entries={cacheEntries}
+              loading={cacheLoading}
+              error={cacheError}
+              onQuery={queryCache}
+              onRefresh={handleRefresh}
+              refreshing={refreshing}
+            />
+          ) : (
+            <section className="data-panel empty-state-panel">
+              <Database size={40} />
+              <p>请选择一个数据集以查看缓存与刷新</p>
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );
