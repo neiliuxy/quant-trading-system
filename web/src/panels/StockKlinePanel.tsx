@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff } from 'lucide-react';
 import ChartDateRangeControl from '../ChartDateRangeControl';
 import { buildKlineSeries, buildTradeMarkers, type KlineRow, type TradeMarker } from '../charts/buildSeries';
@@ -43,6 +44,7 @@ function fmt(v: number | null) {
 }
 
 export function StockKlinePanel(props: StockKlinePanelProps) {
+  const { t } = useTranslation();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const ref = useCallback((node: HTMLDivElement | null) => setContainer(node), []);
 
@@ -112,11 +114,11 @@ export function StockKlinePanel(props: StockKlinePanelProps) {
       <div className="trade-legend">
         <div className="trade-legend-item">
           <div className="trade-legend-dot buy"></div>
-          <span>买入点</span>
+          <span>{t('legend.buyPoint')}</span>
         </div>
         <div className="trade-legend-item">
           <div className="trade-legend-dot sell"></div>
-          <span>卖出点</span>
+          <span>{t('legend.sellPoint')}</span>
         </div>
       </div>
     </section>
