@@ -1,4 +1,14 @@
-import type { BacktestResult, ComparisonResponse, Job, StrategySpec } from './types';
+import type {
+  BacktestResult,
+  CacheEntry,
+  CacheQueryParams,
+  ComparisonResponse,
+  DataRefresh,
+  DataRefreshPayload,
+  DatasetSpec,
+  Job,
+  StrategySpec,
+} from './types';
 
 export interface Stock {
   code: string;
@@ -20,6 +30,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(text || `HTTP ${response.status}`);
   }
   return response.json() as Promise<T>;
+}
+
+function queryString(params: Record<string, string | undefined | null>): string {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, value);
+    }
+  });
+  const serialized = search.toString();
+  return serialized ? `?${serialized}` : '';
+}
+
+export function listDatasets(): Promise<DatasetSpec[]> {
+  return request<DatasetSpec[]>('/api/data/datasets');
+}
+
+export function listCache(params: CacheQueryParams = {}): Promise<CacheEntry[]> {
+  return request<CacheEntry[]>(`/api/data/cache${queryString(params)}`);
+}
+
+export function createRefresh(payload: DataRefreshPayload): Promise<DataRefresh> {
+  return request<DataRefresh>('/api/data/refresh', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getRefresh(refreshId: number): Promise<DataRefresh> {
+  return request<DataRefresh>(`/api/data/refresh/${refreshId}`);
 }
 
 export function listJobs(): Promise<Job[]> {

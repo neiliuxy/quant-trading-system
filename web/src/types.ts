@@ -117,3 +117,69 @@ export interface StrategyGuideData {
     riskLevel: string;
   };
 }
+
+export type DataSegment = 'stock' | 'index';
+
+export type DataRefreshStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+export interface DatasetSpec {
+  dataset_type: string;
+  label: string;
+  columns: string[];
+  symbol_required: boolean;
+  source_name: string;
+  ttl_seconds: number | null;
+  historical_ttl_seconds: number | null;
+}
+
+export interface CacheEntry {
+  id: number;
+  dataset_type: string;
+  symbol: string | null;
+  frequency: string;
+  start_date: string;
+  end_date: string;
+  file_path: string;
+  row_count: number;
+  schema_version: string;
+  source_name: string;
+  expires_at: string | null;
+  created_at: string;
+  refreshed_at: string;
+}
+
+export interface DataRefresh {
+  id: number;
+  request_key: string;
+  dataset_type: string;
+  symbol: string | null;
+  frequency: string;
+  start_date: string;
+  end_date: string;
+  force_refresh: number;
+  status: DataRefreshStatus;
+  cache_hit: number;
+  error_type: string | null;
+  error_message: string | null;
+  output_cache_path: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  updated_at: string;
+}
+
+export interface DataRefreshPayload {
+  dataset_type: string;
+  symbol?: string | null;
+  start: string;
+  end: string;
+  frequency: string;
+  force_refresh: boolean;
+}
+
+export interface CacheQueryParams {
+  dataset_type?: string;
+  symbol?: string;
+  start?: string;
+  end?: string;
+}
