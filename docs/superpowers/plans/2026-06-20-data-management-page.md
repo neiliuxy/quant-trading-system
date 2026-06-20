@@ -66,7 +66,7 @@ Do not modify:
 Create `web/src/api.test.ts`:
 
 ```ts
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createRefresh, getRefresh, listCache, listDatasets } from './api';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000';
@@ -81,10 +81,6 @@ function mockJsonResponse(payload: unknown, ok = true, status = 200) {
 }
 
 describe('datahub api wrappers', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it('lists datasets from the datahub endpoint', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       await mockJsonResponse([
@@ -1167,6 +1163,7 @@ describe('DataManagementView', () => {
 
     await waitFor(() => {
       expect(getRefresh).toHaveBeenCalledWith(9);
+      expect(listCache).toHaveBeenCalledTimes(2);
       expect(listCache).toHaveBeenLastCalledWith({ dataset_type: 'stock_daily' });
     });
 
@@ -1189,6 +1186,8 @@ describe('DataManagementView', () => {
   });
 });
 ```
+
+This is the first test file in this repo to use `vi.mock` / `vi.mocked`. Keep the mock at module scope, before the tests, so component imports receive the mocked API functions.
 
 - [ ] **Step 2: Run orchestration test and verify it fails**
 
@@ -1345,7 +1344,10 @@ export default function DataManagementView() {
                 next.delete(latest.id);
                 return next;
               });
-              if (latest.status === 'completed' && lastCacheQuery) {
+              if (
+                latest.status === 'completed' &&
+                lastCacheQuery?.dataset_type === latest.dataset_type
+              ) {
                 void queryCache(lastCacheQuery);
               }
             }
@@ -1439,7 +1441,7 @@ git commit -m "feat(web): orchestrate data management view"
 - Modify: `web/src/App.tsx`
 - Modify: `web/src/styles.css`
 
-- [ ] **Step 1: Add failing app integration expectations manually**
+- [ ] **Step 1: Verify baseline before wiring**
 
 Before editing, inspect the current app manually:
 
@@ -1560,7 +1562,7 @@ Append to `web/src/styles.css`:
 
 .data-management-grid {
   display: grid;
-  grid-template-columns: 260px minmax(420px, 1fr) 320px;
+  grid-template-columns: 220px minmax(340px, 1fr) 260px;
   gap: 16px;
   align-items: start;
 }
@@ -1680,6 +1682,12 @@ Append to `web/src/styles.css`:
   font-size: 13px;
 }
 
+.refresh-form label.check-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .data-filter-form input,
 .refresh-form input,
 .refresh-form select {
@@ -1727,9 +1735,9 @@ Append to `web/src/styles.css`:
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1440px) {
   .data-management-grid {
-    grid-template-columns: 220px minmax(360px, 1fr) 280px;
+    grid-template-columns: 200px minmax(320px, 1fr) 240px;
   }
 }
 
@@ -1755,15 +1763,16 @@ cd web && npm test
 
 Expected: PASS for the full Vitest suite.
 
-- [ ] **Step 5: Run production build**
+- [ ] **Step 5: Run type check and production build**
 
 Run:
 
 ```bash
+cd web && npx tsc --noEmit
 cd web && npm run build
 ```
 
-Expected: PASS with Vite build output and no TypeScript errors.
+Expected: TypeScript check exits 0, then Vite build exits 0.
 
 - [ ] **Step 6: Commit**
 
@@ -1814,7 +1823,7 @@ Open `http://127.0.0.1:5173` and verify:
 - Switching to `大盘` hides symbol inputs.
 - Starting a refresh adds a row to the right-side queue.
 - Refresh status updates until `completed` or `failed`.
-- When refresh completes, the current cache table reloads.
+- When refresh completes for the same `dataset_type` currently displayed in the cache table, the current cache table reloads.
 - Returning to `Backtest` keeps the original form/history workflow usable.
 
 - [ ] **Step 4: Record manual verification result in final handoff**
@@ -1839,6 +1848,7 @@ Run these commands before claiming implementation completion:
 
 ```bash
 cd web && npm test
+cd web && npx tsc --noEmit
 cd web && npm run build
 python -m pytest -q tests/
 git status --short
@@ -1847,6 +1857,7 @@ git status --short
 Expected:
 
 - Vitest exits 0.
+- TypeScript check exits 0.
 - Vite build exits 0.
 - Python pytest exits 0.
 - `git status --short` contains only intended source changes or is clean after commits.
