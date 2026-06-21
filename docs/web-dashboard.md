@@ -32,7 +32,8 @@ http://127.0.0.1:5173
 
 - SQLite task database: `data/quantx.sqlite`
 - Result artifacts: `data/results/{job_id}.json`
-- Market and stock CSV caches: `data/*.csv`
+- DataHub CSV cache: `data/cache/{dataset_type}/{symbol}_{start}_{end}.csv` (dataset types: `stock_daily`, `index_daily`, `etf_daily`, `market_turnover`)
+- Legacy CSV caches at the `data/` root: `data/*.csv` (e.g. market scores, turnover)
 
 ## Deployment Notes
 
