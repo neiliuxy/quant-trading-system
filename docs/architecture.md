@@ -1,6 +1,6 @@
 # QuantX 量化交易系统架构说明
 
-> 最后更新：2026-06-18
+> 最后更新：2026-06-21
 
 ---
 
@@ -13,9 +13,11 @@
 | 层级 | 技术 |
 |------|------|
 | 策略引擎 | Backtrader |
+| 数据层 | DataHub（统一数据门面，缓存 + AkShare 源）|
 | 数据源 | AkShare（日线 OHLCV、指数、ETF、成交额）|
 | 后端 | FastAPI + SQLite（WAL 模式）|
 | 前端 | React + Vite + TypeScript |
+| 国际化 | i18next + react-i18next（中/英双语）|
 | K 线图 | lightweight-charts v4 |
 | 其他图表 | Recharts |
 
@@ -26,14 +28,15 @@
 ```
 quant-trading-system/
 ├── strategies/         # 策略实现 + 注册表
-├── backtest/           # 回测引擎、数据加载、服务层
+├── backtest/           # 回测引擎、服务层、date helper
+├── datahub/            # 数据门面：缓存/AkShare 源/刷新任务/元数据
 ├── market/             # 市场评分系统（趋势/情绪/量能）
 ├── indicators/         # 自定义 Backtrader 指标（RSRS）
 ├── server/             # FastAPI 后端（API、DB、任务队列）
 ├── web/                # React 前端
 ├── scripts/            # 辅助脚本
 ├── tests/              # pytest 测试套件
-├── data/               # CSV 缓存、SQLite、结果 JSON（gitignore）
+├── data/               # DataHub 缓存、SQLite、结果 JSON（gitignore）
 ├── logs/               # 运行日志（gitignore）
 └── docs/               # 文档
 ```
@@ -51,7 +54,7 @@ server/api.py
   │  submit_background()
   ▼
 server/executor.py（后台线程）
-  ├── backtest/data_loader.py   ← AkShare → DataFrame → CSV 缓存
+  ├── datahub.service.DataHub  ← 缓存命中？→ 返回；否则 AkShare → 规范化 → 写缓存
   ├── market/market_analyzer.py ← 市场评分（可选）
   ├── Backtrader Cerebro        ← 策略 + 自定义 Analyzer
   └── 输出：equity_curve / trades / price_data / drawdown
