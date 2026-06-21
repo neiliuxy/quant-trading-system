@@ -18,4 +18,15 @@ describe('i18n init', () => {
     expect(r.zh).toBeDefined();
     expect(r.en).toBeDefined();
   });
+
+  it('interpolates dot-keyed templates instead of leaking raw placeholders', async () => {
+    await i18n.changeLanguage('zh');
+    const zh = i18n.t('result.backtestTitle', { symbol: '000001', name: '平安银行' });
+    expect(zh).toBe('000001 平安银行 回测');
+    expect(zh).not.toContain('{');
+
+    await i18n.changeLanguage('en');
+    const en = i18n.t('result.backtestTitle', { symbol: '000001', name: 'Ping An Bank' });
+    expect(en).toBe('000001 Ping An Bank Backtest');
+  });
 });

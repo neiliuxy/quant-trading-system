@@ -22,7 +22,18 @@ i18n
     lng: readSavedLng(),
     fallbackLng: 'zh',
     defaultNS: 'common',
-    interpolation: { escapeValue: false },
+    // Flat keys with dots (e.g. "result.backtestTitle") are literal keys, not
+    // nested paths.
+    keySeparator: false,
+    nsSeparator: false,
+    // Locale templates use single-brace placeholders ({symbol}, {name}).
+    // i18next defaults to double braces ({{name}}), so override the prefix/
+    // suffix — otherwise templates leak raw "{symbol} {name}" to the UI.
+    interpolation: {
+      escapeValue: false,
+      prefix: '{',
+      suffix: '}',
+    },
     saveMissing: import.meta.env.DEV,
     missingKeyHandler: (_lngs, _ns, key) => {
       if (import.meta.env.DEV) {
