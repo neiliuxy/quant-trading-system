@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
+import pytest
 
 from backtest.run_backtest import generate_synthetic_data
 from backtest.service import BacktestRequest, run_backtest_service
@@ -289,3 +290,41 @@ def test_run_backtest_service_loads_primary_feed_through_datahub(monkeypatch):
     assert result.symbol == '000001'
     assert calls[0].dataset_type == 'stock_daily'
     assert calls[0].symbol == '000001'
+
+
+def test_run_backtest_service_includes_risk_metrics(monkeypatch):
+    stock_df = generate_synthetic_data(start='20200101', end='20221231')
+    # 构造已知涨幅的指数 feed：首 close 3000，末 close 3300 → 基准 +10%
+    index_df = generate_synthetic_data(start='20200101', end='20221231').copy()
+    index_df['amount'] = 1e12
+    index_df.loc[index_df.index[0], 'close'] = 3000.0
+    index_df.loc[index_df.index[-1], 'close'] = 3300.0
+
+    hub = FakeHub()
+    hub.feed('stock_daily', stock_df)
+    hub.feed('index_daily', index_df, symbol='sh000001')
+    _patch_hub(monkeypatch, hub)
+
+    request = BacktestRequest(
+        symbol='000001',
+        start='20200101',
+        end='20221231',
+        cash=100000.0,
+        use_market_filter=False,
+    )
+
+    result = run_backtest_service(request)
+    payload = result.to_dict()
+
+    # 5 个新字段存在且为 float
+    for key in ('sharpe', 'annual_return_pct', 'profit_loss_ratio',
+                'benchmark_return_pct', 'excess_return_pct'):
+        assert key in payload
+        assert isinstance(payload[key], float)
+
+    # 基准收益 = (3300/3000 - 1)*100 = 10%
+    assert payload['benchmark_return_pct'] == pytest.approx(10.0)
+    # 超额收益 = 策略收益 - 基准收益
+    assert payload['excess_return_pct'] == pytest.approx(
+        payload['total_return_pct'] - payload['benchmark_return_pct']
+    )
