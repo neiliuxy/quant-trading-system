@@ -7,6 +7,7 @@ from typing import Any
 import backtrader as bt
 import pandas as pd
 
+from backtest.costs import apply_ashare_costs
 from backtest.data_loader import resolve_date_range
 from datahub.models import DatasetRequest
 from datahub.service import DataHub
@@ -231,6 +232,7 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
     strategy_kwargs = {k: v for k, v in strategy_kwargs.items() if k in strategy_param_names}
     cerebro.addstrategy(spec.strategy_class, **strategy_kwargs)
     cerebro.broker.setcash(req.cash)
+    apply_ashare_costs(cerebro)
     cerebro.addanalyzer(EquityCurveAnalyzer, _name='equity')
     cerebro.addanalyzer(TradeListAnalyzer, _name='trades')
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
