@@ -484,6 +484,27 @@ tbody tr:nth-child(even) { background: var(--bg-raised); }
   user-select: none;
   margin-bottom: var(--space-3);
 }
+/* Indicator (MACD/KDJ/volume) panels are short; the 400px kline height would
+   leave a large empty band below a 200px chart. Keep height here the single
+   source of truth and let ResponsiveContainer fill it via height="100%". */
+.chart-container--indicator {
+  height: 220px;
+}
+/* Form controls must follow theme variables, not hardcoded white — the app is
+   dark-themed, so a #fff background with inherited light text was unreadable. */
+.indicator-select {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+.indicator-select option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
 
 .chart-hint {
   font-size: 12px;

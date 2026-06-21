@@ -22,9 +22,9 @@ export function IndexIndicatorPanel(props: IndexIndicatorPanelProps) {
       <div className="chart-header">
         <h3>{t('panel.indexIndicator')}</h3>
         <select
+          className="indicator-select"
           value={props.selected}
           onChange={(e) => props.onChangeSelected(e.target.value as IndicatorKey)}
-          style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #cbd5df', background: '#fff' }}
         >
           <option value="macd">MACD</option>
           <option value="kdj">KDJ</option>
@@ -33,8 +33,8 @@ export function IndexIndicatorPanel(props: IndexIndicatorPanelProps) {
         </select>
       </div>
 
-      <div className="chart-container">
-        <ResponsiveContainer width="100%" height={200}>
+      <div className="chart-container chart-container--indicator">
+        <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={filtered}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" minTickGap={32} />
