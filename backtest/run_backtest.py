@@ -9,6 +9,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from backtest.costs import apply_ashare_costs
 from backtest.data_loader import load_market_data, resolve_date_range
 from backtest.service import _make_datahub
 from market.market_analyzer import MarketConfig, get_market_score
@@ -125,6 +126,7 @@ def run(
     strategy_kwargs = {k: v for k, v in strategy_kwargs.items() if k in strategy_param_names}
     cerebro.addstrategy(spec.strategy_class, **strategy_kwargs)
     cerebro.broker.setcash(cash)
+    apply_ashare_costs(cerebro)
 
     print(f'Starting cash: {cerebro.broker.getcash():.2f}')
     cerebro.run()
