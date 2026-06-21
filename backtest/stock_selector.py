@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 import backtrader as bt
+from backtest.costs import apply_ashare_costs
 from backtest.data_loader import load_market_data, resolve_date_range
 from strategies.swing_ma_boll import SwingStrategy
 from market.market_analyzer import MarketConfig, get_market_score
@@ -27,6 +28,7 @@ def run_single_backtest(symbol, start=None, end=None, cash=100000, market_score_
         cerebro.adddata(data)
         cerebro.addstrategy(SwingStrategy, market_score_dict=market_score_dict)
         cerebro.broker.setcash(cash)
+        apply_ashare_costs(cerebro)
 
         initial = cash
         cerebro.run(runonce=False, stdstats=False)
