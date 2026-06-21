@@ -58,6 +58,11 @@ export interface BacktestResult {
   max_drawdown_pct: number;
   trade_count: number;
   win_rate_pct: number;
+  sharpe: number;
+  annual_return_pct: number;
+  profit_loss_ratio: number;
+  benchmark_return_pct: number;
+  excess_return_pct: number;
   equity_curve: Array<{ date: string; value: number; cash: number }>;
   trades: Array<{ date: string; pnl: number; pnlcomm: number; barlen: number; size: number }>;
   market_scores: Array<{

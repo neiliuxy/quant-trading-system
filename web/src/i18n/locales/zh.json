@@ -43,6 +43,11 @@
   "kpi.winRate": "胜率",
   "kpi.maxDrawdown": "最大回撤",
   "kpi.tradeCount": "交易次数",
+  "kpi.sharpe": "夏普比率",
+  "kpi.annualReturn": "年化收益",
+  "kpi.profitLossRatio": "盈亏比",
+  "kpi.benchmarkReturn": "基准收益",
+  "kpi.excessReturn": "超额收益",
   "kpi.avgScore": "平均评分",
   "kpi.subFormat": "初始 {initial} · 收益 {return}",
 

@@ -43,6 +43,11 @@
   "kpi.winRate": "Win Rate",
   "kpi.maxDrawdown": "Max Drawdown",
   "kpi.tradeCount": "Trade Count",
+  "kpi.sharpe": "Sharpe Ratio",
+  "kpi.annualReturn": "Annual Return",
+  "kpi.profitLossRatio": "Profit/Loss Ratio",
+  "kpi.benchmarkReturn": "Benchmark Return",
+  "kpi.excessReturn": "Excess Return",
   "kpi.avgScore": "Avg Score",
   "kpi.subFormat": "Initial {initial} · Return {return}",
 
