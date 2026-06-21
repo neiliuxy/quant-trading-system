@@ -259,6 +259,16 @@ button { cursor: pointer; }
 .history-item-wrapper .history-item {
   flex: 1;
   margin-bottom: 0;
+  /* Allow the label span to shrink below its min-content width and ellipsize,
+     so the long "symbol name date-date" string can't crowd the status badge
+     into a vertical stack. */
+  min-width: 0;
+}
+.history-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .clear-all-btn {
@@ -298,6 +308,11 @@ button { cursor: pointer; }
   background: var(--bg-raised);
   color: var(--text-secondary);
   border: 1px solid var(--border-subtle);
+  /* Badges must never wrap into a vertical stack. whitespace: nowrap keeps the
+     label on one line; flex-shrink: 0 stops a cramped flex row from squeezing
+     it down to one-character width. */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .status-completed { background: var(--color-success-bg); color: var(--color-success); border-color: var(--color-success); }
 .status-failed { background: var(--color-danger-bg); color: var(--color-danger); border-color: var(--color-danger); }

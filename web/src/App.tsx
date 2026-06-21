@@ -522,7 +522,7 @@ export default function App() {
           {jobs.map((job) => (
             <div key={job.id} className="history-item-wrapper">
               <button className="history-item" onClick={() => setSelectedJob(job)}>
-                <span>{job.symbol} {getStockName(job.symbol)} {job.start_date}-{job.end_date}</span>
+                <span className="history-item-label">{job.symbol} {getStockName(job.symbol)} {job.start_date}-{job.end_date}</span>
                 <StatusBadge status={job.status} labels={statusLabels} />
               </button>
               <button
