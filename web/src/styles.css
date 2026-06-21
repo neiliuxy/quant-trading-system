@@ -1371,7 +1371,11 @@ tbody tr:nth-child(even) { background: var(--bg-raised); }
 }
 .lang-switcher-menu {
   position: absolute;
-  right: 0;
+  /* Trigger lives in the sidebar near the left edge; opening to the right
+     keeps the menu inside the sidebar's content box so the sidebar's
+     overflow-y:auto (which also clips overflow-x per spec) no longer cuts off
+     the option text. */
+  left: 0;
   top: calc(100% + 4px);
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
