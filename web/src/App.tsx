@@ -247,6 +247,11 @@ export default function App() {
       { label: t('kpi.winRate'), value: formatPct(result.win_rate_pct) },
       { label: t('kpi.maxDrawdown'), value: formatPct(result.max_drawdown_pct) },
       { label: t('kpi.tradeCount'), value: String(result.trade_count) },
+      { label: t('kpi.sharpe'), value: result.sharpe.toFixed(2) },
+      { label: t('kpi.annualReturn'), value: formatPct(result.annual_return_pct) },
+      { label: t('kpi.profitLossRatio'), value: result.profit_loss_ratio.toFixed(2) },
+      { label: t('kpi.benchmarkReturn'), value: formatPct(result.benchmark_return_pct) },
+      { label: t('kpi.excessReturn'), value: formatPct(result.excess_return_pct) },
       { label: t('kpi.avgScore'), value: result.market_score_summary.mean?.toFixed(2) ?? 'N/A' },
       { label: t('kpi.initialCash'), value: result.initial_cash.toFixed(0) },
     ];
