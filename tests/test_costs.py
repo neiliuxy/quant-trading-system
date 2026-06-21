@@ -46,3 +46,9 @@ def test_minimum_commission_floor():
     # 佣金被托底为 5 元 + 过户费(无印花税,买入)
     expected = MIN_COMMISSION + value * TRANSFER_FEE_RATE
     assert cost == pytest.approx(expected)
+
+
+def test_apply_costs_sets_slippage():
+    cerebro = bt.Cerebro()
+    apply_ashare_costs(cerebro)
+    assert cerebro.broker.p.slip_perc == pytest.approx(SLIPPAGE_PERC)
