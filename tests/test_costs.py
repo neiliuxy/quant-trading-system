@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import backtrader as bt
+import pandas as pd
 import pytest
 
 from backtest.costs import (
@@ -15,6 +16,7 @@ from backtest.costs import (
     SLIPPAGE_PERC,
     apply_ashare_costs,
 )
+from backtest.run_backtest import generate_synthetic_data
 
 
 def test_buy_cost_excludes_stamp_duty():
@@ -52,3 +54,25 @@ def test_apply_costs_sets_slippage():
     cerebro = bt.Cerebro()
     apply_ashare_costs(cerebro)
     assert cerebro.broker.p.slip_perc == pytest.approx(SLIPPAGE_PERC)
+
+
+def _run_with(cerebro_mutator):
+    """跑一段合成数据回测,返回 final_value。cerebro_mutator 用于注入成本。"""
+    from strategies.swing_ma_boll import SwingStrategy
+
+    df = generate_synthetic_data(start='20200101', end='20221231')
+    df['date'] = pd.to_datetime(df['date'])
+    cerebro = bt.Cerebro()
+    cerebro.adddata(bt.feeds.PandasData(dataname=df, datetime=0))
+    cerebro.addstrategy(SwingStrategy, market_score_dict=None)
+    cerebro.broker.setcash(100000.0)
+    cerebro_mutator(cerebro)
+    cerebro.run(runonce=False, stdstats=False)
+    return cerebro.broker.getvalue()
+
+
+def test_costs_reduce_final_value():
+    baseline = _run_with(lambda c: None)            # 无成本
+    with_costs = _run_with(apply_ashare_costs)      # 有成本
+    # 同样的策略与数据,加成本后最终市值必须更低
+    assert with_costs < baseline
