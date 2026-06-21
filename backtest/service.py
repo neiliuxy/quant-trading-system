@@ -9,6 +9,13 @@ import pandas as pd
 
 from backtest.costs import apply_ashare_costs
 from backtest.data_loader import resolve_date_range
+from backtest.metrics import (
+    compute_benchmark_return_pct,
+    compute_excess_return_pct,
+    compute_profit_loss_ratio,
+    extract_annual_return_pct,
+    extract_sharpe,
+)
 from datahub.models import DatasetRequest
 from datahub.service import DataHub
 from market.market_analyzer import MarketConfig, get_market_score
@@ -65,6 +72,11 @@ class BacktestResult:
     max_drawdown_pct: float
     trade_count: int
     win_rate_pct: float
+    sharpe: float = 0.0
+    annual_return_pct: float = 0.0
+    profit_loss_ratio: float = 0.0
+    benchmark_return_pct: float = 0.0
+    excess_return_pct: float = 0.0
     equity_curve: list[dict[str, Any]] = field(default_factory=list)
     trades: list[dict[str, Any]] = field(default_factory=list)
     market_scores: list[dict[str, Any]] = field(default_factory=list)
@@ -238,6 +250,9 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trade_stats')
     cerebro.addanalyzer(PriceDataAnalyzer, _name='price')
+    cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe',
+                        timeframe=bt.TimeFrame.Days, annualize=True)
+    cerebro.addanalyzer(bt.analyzers.Returns, _name='returns')
 
     strategies = cerebro.run(runonce=False, stdstats=False)
     strategy = strategies[0]
@@ -251,6 +266,12 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
     won_total = int(trade_stats.get('won', {}).get('total', 0) or 0)
     win_rate_pct = (won_total / total_closed * 100.0) if total_closed else 0.0
 
+    sharpe = extract_sharpe(strategy.analyzers.sharpe.get_analysis())
+    annual_return_pct = extract_annual_return_pct(strategy.analyzers.returns.get_analysis())
+    profit_loss_ratio = compute_profit_loss_ratio(trade_stats)
+    benchmark_return_pct = compute_benchmark_return_pct(index_data)
+    excess_return_pct = compute_excess_return_pct(total_return_pct, benchmark_return_pct)
+
     return BacktestResult(
         symbol=req.symbol,
         start=req.start,
@@ -261,6 +282,11 @@ def run_backtest_service(request: BacktestRequest) -> BacktestResult:
         max_drawdown_pct=float(drawdown.get('max', {}).get('drawdown', 0.0) or 0.0),
         trade_count=total_closed,
         win_rate_pct=float(win_rate_pct),
+        sharpe=float(sharpe),
+        annual_return_pct=float(annual_return_pct),
+        profit_loss_ratio=float(profit_loss_ratio),
+        benchmark_return_pct=float(benchmark_return_pct),
+        excess_return_pct=float(excess_return_pct),
         equity_curve=strategy.analyzers.equity.get_analysis(),
         trades=trades,
         market_scores=score_rows,
