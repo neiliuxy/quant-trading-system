@@ -181,12 +181,12 @@ class FoldResult:
 
 @dataclass(frozen=True)
 class ParamStability:
-    """一个参数在所有成功窗口最优取值上的统计。"""
+    """一个参数在所有 IS 有效窗口最优取值上的统计。"""
     value: float                     # 众数（出现次数最多的值）
     count: int                       # 众数的出现次数
     mean: float                      # 各窗最优取值的算术平均
     std: float                       # 各窗最优取值的标准差（0 表示全部相等）
-    occurrences: dict[str, int]      # 该参数所有出现过的取值 → 次数（仅 top-N 或全部）
+    occurrences: dict[str, int]      # 该参数所有出现过的取值 → 次数；键为 str(value)（如 "1.5"）以保证 JSON 序列化合法
 
 
 @dataclass(frozen=True)
@@ -267,6 +267,7 @@ def run_walkforward(
 
 4. **每窗寻优 + OOS 验证**（伪代码）：
    ```
+   base_params = spec.defaults         # 策略声明的默认参数；combo 只覆盖用户选中的 2-3 个寻优参数
    total_folds = len(windows)
    fold_results = []
    for fold_idx, (ts, te, vs, ve) in enumerate(windows):
@@ -314,18 +315,19 @@ def run_walkforward(
            on_fold_complete(fold_idx + 1, total_folds)
    ```
 
-5. **汇总 summary**：
+5. **汇总 summary**——按指标语义拆集合（`no_signal` 窗的 IS 无结果、OOS 用默认参数跑有结果，两套集合必须分开）：
    - `fold_count = len(fold_results)`
    - `failed_folds = sum(1 for f in fold_results if f.failed)`
-   - 成功窗集合 `valid = [f for f in fold_results if not f.failed and not f.no_signal]`（`no_signal` 窗**计入均值**，因为有合法的 OOS 跑出）
-   - `mean_is_sharpe = mean(f.is_sharpe for f in valid)`（空集 → `0.0`）
-   - `mean_oos_sharpe = mean(f.oos_sharpe for f in valid)`（空集 → `0.0`）
+   - `valid_is = [f for f in fold_results if not f.failed and not f.no_signal]` → 用于 `mean_is_sharpe`、`param_stability`（无 IS 优化结果的窗不参与 IS 指标聚合）
+   - `valid_oos = [f for f in fold_results if not f.failed]` → 用于 `mean_oos_sharpe`、`oos_win_folds`（`no_signal` 窗的 OOS 是真实跑出的结果，应参与 OOS 指标聚合）
+   - `mean_is_sharpe = mean(f.is_sharpe for f in valid_is)`（空集 → `0.0`）
+   - `mean_oos_sharpe = mean(f.oos_sharpe for f in valid_oos)`（空集 → `0.0`）
    - `efficiency = (mean_oos_sharpe / mean_is_sharpe) if mean_is_sharpe > 0 else None`
-   - `oos_win_folds = sum(1 for f in valid if f.oos_sharpe > 0)`
-   - `param_stability[name]`：取每个成功窗（含 `no_signal`）的 `best_params[name]`（`no_signal` 跳过该参数）：
+   - `oos_win_folds = sum(1 for f in valid_oos if f.oos_sharpe > 0)`
+   - `param_stability[name]`：取每个 `valid_is` 窗的 `best_params[name]`（集合已排除 `no_signal`，`best_params` 必非空）：
      - `mean = mean(values)`
      - `std = pstdev(values)`（样本数 < 2 → `0.0`）
-     - `occurrences = dict(Counter(values))`
+     - `occurrences = {str(v): c for v, c in Counter(values).items()}`（key 转 str 以保证 JSON 序列化合法）
      - `value, count = max(occurrences.items(), key=lambda kv: kv[1])`（ties 取首次出现的）
 
 ### 边界处理
@@ -340,7 +342,8 @@ def run_walkforward(
 | 全部组合零成交 | 该窗 `no_signal=True`，**OOS 用默认参数跑**（不放弃整窗），让用户在表格里看到"无样本内信号" |
 | 某次回测异常（非业务错误） | 该窗 `failed=True`、`failed_folds += 1`、OOS 不跑；**不中断整体分析**，继续后续窗口 |
 | `mean_is_sharpe <= 0` | `efficiency = None`；前端裁决卡显示"样本内无效"而非色标 |
-| `valid` 为空（全失败/全 no_signal） | `mean_is_sharpe=mean_oos_sharpe=0.0`、`oos_win_folds=0`、`efficiency=None`；前端裁决卡显示"无有效窗口" |
+| `valid_is` 为空（全失败/全 no_signal） | `mean_is_sharpe=0.0`、`efficiency=None`；`mean_oos_sharpe` 仍按 `valid_oos` 算（若有 `no_signal` 窗跑了 OOS，可能非零）；前端裁决卡显示"无有效窗口" |
+| `valid_oos` 为空（全失败） | `mean_oos_sharpe=0.0`、`oos_win_folds=0`；前端裁决卡显示"无有效窗口" |
 
 ---
 
@@ -380,16 +383,16 @@ CREATE INDEX IF NOT EXISTS idx_wfo_runs_run_key ON wfo_runs(run_key);
 
 ### 新增模块 `server/wfo_executor.py`
 
-照搬 `server/executor.py` 的成熟模式 + 注入 trading_calendar 默认实现：
+照搬 `server/executor.py` 的成熟模式 + 调用 `backtest/data_loader.default_trading_calendar`：
 
 ```python
 import json
 import os
 import threading
 
-from backtest.service import run_backtest_service, _make_datahub
+from backtest.data_loader import default_trading_calendar
+from backtest.service import run_backtest_service
 from backtest.walkforward import WfoConfig, run_walkforward
-from datahub.models import DatasetRequest
 from server.jobs import (
     get_wfo_run, update_wfo_run_status, update_wfo_run_progress,
     mark_wfo_run_completed,
@@ -399,17 +402,6 @@ DEFAULT_ARTIFACT_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     'data', 'results',
 )
-
-
-def default_trading_calendar(symbol: str, start: str, end: str) -> list[str]:
-    """WFO 引擎 trading_calendar 的默认实现：走 DataHub 取 stock_daily 日期索引。"""
-    hub = _make_datahub()
-    df = hub.get_dataset(DatasetRequest(
-        dataset_type='stock_daily', symbol=symbol, start=start, end=end,
-    )).frame
-    if df is None or df.empty:
-        return []
-    return sorted(df['date'].dt.strftime('%Y%m%d').tolist())
 
 
 def execute_wfo_once(conn, wfo_id: int, artifact_dir: str = DEFAULT_ARTIFACT_DIR) -> None:
@@ -448,14 +440,57 @@ def submit_wfo_background(conn, wfo_id: int, artifact_dir: str = DEFAULT_ARTIFAC
     return thread
 ```
 
+### 新增 `backtest/data_loader.default_trading_calendar`（公开函数）
+
+交易日历本质是数据加载层职责，从 executor 上移到 `data_loader.py`，避免 server 层直接依赖 backtest 的私有工厂函数：
+
+```python
+# backtest/data_loader.py 追加
+from datahub.models import DatasetRequest
+from datahub.service import DataHub
+from server.db import init_db, DEFAULT_DB_PATH
+
+
+def default_trading_calendar(symbol: str, start: str, end: str) -> list[str]:
+    """WFO 引擎 trading_calendar 的默认实现：走 DataHub 取 stock_daily 日期索引。
+
+    返回 [start, end] 区间内按交易日排序的 YYYYMMDD 字符串列表；数据为空返回空列表。
+    """
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    hub = DataHub(root_dir=project_root, conn=init_db(DEFAULT_DB_PATH))
+    df = hub.get_dataset(DatasetRequest(
+        dataset_type='stock_daily', symbol=symbol, start=start, end=end,
+    )).frame
+    if df is None or df.empty:
+        return []
+    return sorted(df['date'].dt.strftime('%Y%m%d').tolist())
+```
+
 `server/jobs.py` 同步新增 `get_wfo_run / update_wfo_run_status / update_wfo_run_progress / mark_wfo_run_completed / create_wfo_run` 五个 helper（结构照搬现有 jobs 表的同名函数）。
 
 ### 序列化与缓存
 
 - `WfoResult.to_dict()` → executor 写入 artifact → API `/result` 读盘返回。
 - `result_type: 'wfo'` 字段让前端能稳健判断路由（不依赖 `folds` 字段存在性）。
-- **run_key**：`sha256(json.dumps(asdict(WfoConfig), sort_keys=True) + current_code_version())`。配置完全一致且代码版本一致时复用上次结果。
+- **run_key**：与 `server/jobs.py:run_key_for_request` 风格保持一致：
+  ```python
+  import hashlib, json
+  from dataclasses import asdict
+  from server.jobs import current_code_version
+
+  payload = {
+      'config': asdict(config),
+      'code_version': current_code_version(),
+  }
+  encoded = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+  run_key = hashlib.sha256(encoded.encode()).hexdigest()
+  ```
+  配置完全一致且代码版本一致时复用上次结果。
 - 缓存失效：`code_version` 含 git short hash，与现有机制一致。
+
+### POST 同步校验耗时说明
+
+`POST /api/wfo` 在写入 `wfo_runs` 表前会同步调用 `default_trading_calendar` 以计算 `total_folds` 并校验网格上限。该调用对应该股票**首次**加载时需从 AkShare 拉取并写缓存，可能等待 1-2 秒；之后命中 DataHub 缓存，毫秒级返回。前端实现时若看到 ~1s 的请求延迟属正常，不应误判为接口卡死。若未来需避免阻塞，可将该校验挪到后台线程 + 改用 POST + GET 两阶段提交（YAGNI，本期不做）。
 
 ---
 
@@ -596,7 +631,13 @@ export interface WfoRun {
 6. **网格 > MAX_GRID_RUNS 拒绝**：抛 `ValueError`，不调 `run`。
 7. **区间不足拒绝**：交易日总数 < train + test 时抛 `ValueError`。
 8. **零成交 Sharpe=None**：按 -inf 处理，不被选；全零成交 → fold.no_signal=True。
-9. **某次回测异常 → fold.failed=True**：summary.failed_folds += 1；该窗不计入 mean/胜窗/稳定性。
+9. **某次回测异常 → fold.failed=True**：summary.failed_folds += 1；该窗不进 `valid_is` / `valid_oos`，因此不计入 mean/胜窗/param_stability。
+9a. **`no_signal` 拆集合语义**：构造混合场景（含一个正常窗 + 一个 `no_signal` 窗 + 一个 `failed` 窗），断言：
+   - `mean_is_sharpe` 只算正常窗（`no_signal` 不进）
+   - `mean_oos_sharpe` 包含正常窗 + `no_signal` 窗
+   - `oos_win_folds` 同上
+   - `param_stability` 只取正常窗的 `best_params`
+9b. **`occurrences` 序列化合法**：构造一个 `boll_devfactor` 网格（float 值），断言 `summary.param_stability[name].occurrences` 的键全部为字符串（如 `"1.5"`），可被 `json.dumps` 不抛异常。
 10. **进度回调**：`on_fold_complete(current, total)` 传入预计算的 `total_folds`（**不是已完成数**）。
 11. **`to_dict()` 结构稳定**：含 `result_type: 'wfo'`、可序列化、字段齐全。
 12. **效率比回退**：`mean_is_sharpe <= 0` → `efficiency=None`。
