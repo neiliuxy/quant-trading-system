@@ -194,7 +194,7 @@ class WfoSummary:
     fold_count: int                  # 总窗口数（含失败）
     failed_folds: int                # 失败窗口数（不计入下列均值 / 胜窗 / 稳定性）
     mean_is_sharpe: float            # 仅成功窗口的样本内 Sharpe 均值
-    mean_oos_sharpe: float           # 仅成功窗口的样本外 Sharpe 均值
+    mean_oos_sharpe: float           # 非失败窗口（含 no_signal）的样本外 Sharpe 均值
     efficiency: float | None         # mean_oos_sharpe / mean_is_sharpe；mean_is_sharpe <= 0 时为 None
     oos_win_folds: int               # 成功窗口中 oos_sharpe > 0 的个数
     param_stability: dict[str, ParamStability]  # 每个被寻优参数的稳定性
@@ -579,7 +579,7 @@ export interface WfoRun {
 
 1. **裁决卡**：4 张卡片（IS 均值 / OOS 均值 / efficiency / OOS 胜窗数）。
    - `efficiency === null` → 卡片显示"样本内无效"（无色标）。
-   - `efficiency === 0.0 && fold_count > 0` → 显示"无有效窗口"。
+   - `efficiency === null && mean_is_sharpe === 0 && fold_count > 0` → 显示"无有效窗口"（等价于 valid_is 为空：`valid_is` 不直接暴露给前端，故用其派生结果反推）。
    - 否则：≥ 0.6 绿色，0.3-0.6 黄色，<0.3 红色。
 2. **逐窗柱状图**：Recharts `BarChart`，双柱（IS Sharpe + OOS Sharpe）按 fold 排列。`failed` 窗标灰、`no_signal` 窗标浅色。tooltip 显示完整 FoldResult。
 3. **逐窗明细表**：列出 train/test 区间、最优参数 chip、两段 Sharpe/收益/OOS 回撤与交易数；failed/no_signal 行用差异化样式。
