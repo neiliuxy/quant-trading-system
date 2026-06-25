@@ -100,6 +100,24 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
 
         CREATE INDEX IF NOT EXISTS idx_datahub_refreshes_request_status
         ON datahub_refreshes(request_key, status);
+
+        CREATE TABLE IF NOT EXISTS wfo_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_key TEXT NOT NULL,
+            status TEXT NOT NULL,
+            symbol TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            strategy_id TEXT NOT NULL,
+            config_json TEXT NOT NULL,
+            artifact_path TEXT,
+            current_fold INTEGER DEFAULT 0,
+            total_folds INTEGER DEFAULT 0,
+            error TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_wfo_runs_run_key ON wfo_runs(run_key);
         """
     )
     _migrate_jobs_schema(conn)
