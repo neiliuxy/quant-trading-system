@@ -5722,6 +5722,105 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
         deleted_count = delete_all_jobs(conn)
         return {'deleted_count': deleted_count}
 
+    @app.post('/api/wfo')
+    def create_wfo(payload: dict):
+        from backtest.walkforward import WfoConfig
+        from server.wfo_executor import submit_wfo_background
+        from server.jobs import create_wfo_run
+
+        try:
+            config = WfoConfig(
+                symbol=str(payload['symbol']).zfill(6),
+                start=str(payload['start']),
+                end=str(payload['end']),
+                cash=float(payload.get('cash', 100000.0)),
+                use_market_filter=bool(payload.get('use_market_filter', True)),
+                strategy_id=str(payload.get('strategy_id', 'swing_ma_boll')),
+                param_grid=dict(payload.get('param_grid', {})),
+                train_days=int(payload.get('train_days', 504)),
+                test_days=int(payload.get('test_days', 126)),
+                step_days=int(payload.get('step_days', 126)),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"配置无效: {exc}") from exc
+
+        # 同步校验:调 default_trading_calendar 算 fold_count 并触发 run_walkforward 前置校验
+        try:
+            from backtest.walkforward import _compute_windows, _typed_param_grid, _cartesian, MAX_GRID_RUNS
+            from backtest.data_loader import default_trading_calendar
+            from strategies.registry import get_strategy_spec
+            spec = get_strategy_spec(config.strategy_id)
+            allowed = {p.name for p in spec.params if p.type in ('int', 'float')}
+            for key in config.param_grid:
+                if key not in allowed:
+                    raise ValueError(
+                        f"未知参数 {key},策略 {config.strategy_id} 支持的数值参数为 {sorted(allowed)}"
+                    )
+            calendar = default_trading_calendar(config.symbol, config.start, config.end)
+            if not calendar:
+                raise ValueError("区间内无可用交易日")
+            windows = _compute_windows(calendar, config.train_days, config.test_days, config.step_days)
+            typed_grid = _typed_param_grid(spec, config.param_grid)
+            combos = _cartesian(typed_grid)
+            total_runs = len(windows) * len(combos)
+            if total_runs > MAX_GRID_RUNS:
+                raise ValueError(
+                    f"参数网格过大:{total_runs} 次样本内回测 > {MAX_GRID_RUNS} 上限。请缩小网格或缩短区间。"
+                )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        config_json = json.dumps({
+            'symbol': config.symbol, 'start': config.start, 'end': config.end,
+            'cash': config.cash, 'use_market_filter': config.use_market_filter,
+            'strategy_id': config.strategy_id,
+            'param_grid': dict(config.param_grid),
+            'train_days': config.train_days,
+            'test_days': config.test_days,
+            'step_days': config.step_days,
+        })
+        row = create_wfo_run(conn, config_json, config.strategy_id, config.symbol,
+                              config.start, config.end)
+        submit_wfo_background(conn, row['id'])
+        return {
+            'id': row['id'],
+            'status': row['status'],
+            'total_folds': len(windows),
+            'symbol': config.symbol,
+            'start_date': config.start,
+            'end_date': config.end,
+            'strategy_id': config.strategy_id,
+            'current_fold': 0,
+            'error': None,
+        }
+
+    @app.get('/api/wfo/{wfo_id}')
+    def wfo_status(wfo_id: int):
+        from server.jobs import get_wfo_run
+        row = get_wfo_run(conn, wfo_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail='wfo run not found')
+        return {
+            'id': row['id'],
+            'status': row['status'],
+            'symbol': row['symbol'],
+            'start_date': row['start_date'],
+            'end_date': row['end_date'],
+            'strategy_id': row['strategy_id'],
+            'current_fold': row['current_fold'],
+            'total_folds': row['total_folds'],
+            'error': row['error'],
+        }
+
+    @app.get('/api/wfo/{wfo_id}/result')
+    def wfo_result(wfo_id: int):
+        from server.jobs import get_wfo_run
+        row = get_wfo_run(conn, wfo_id)
+        if row is None or not row.get('artifact_path'):
+            raise HTTPException(status_code=404, detail='result not found')
+        with open(row['artifact_path'], encoding='utf-8') as f:
+            return json.load(f)
+
     @app.get('/api/data/datasets')
     def datahub_datasets():
         return [
