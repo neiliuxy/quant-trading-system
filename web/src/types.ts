@@ -188,3 +188,70 @@ export interface CacheQueryParams {
   start?: string;
   end?: string;
 }
+
+export interface WfoConfig {
+  symbol: string;
+  start: string;
+  end: string;
+  cash: number;
+  use_market_filter: boolean;
+  strategy_id: string;
+  param_grid: Record<string, number[]>;
+  train_days: number;
+  test_days: number;
+  step_days: number;
+}
+
+export interface FoldResult {
+  fold_index: number;
+  train_start: string;
+  train_end: string;
+  test_start: string;
+  test_end: string;
+  best_params: Record<string, number>;
+  is_sharpe: number;
+  is_return_pct: number;
+  oos_sharpe: number;
+  oos_return_pct: number;
+  oos_drawdown_pct: number;
+  oos_trade_count: number;
+  no_signal: boolean;
+  failed: boolean;
+}
+
+export interface ParamStability {
+  value: number;
+  count: number;
+  mean: number;
+  std: number;
+  occurrences: Record<string, number>;
+}
+
+export interface WfoSummary {
+  fold_count: number;
+  failed_folds: number;
+  mean_is_sharpe: number;
+  mean_oos_sharpe: number;
+  efficiency: number | null;
+  oos_win_folds: number;
+  param_stability: Record<string, ParamStability>;
+}
+
+export interface WfoResult {
+  result_type: 'wfo';
+  config: WfoConfig;
+  folds: FoldResult[];
+  summary: WfoSummary;
+}
+
+export interface WfoRun {
+  id: number;
+  status: JobStatus;
+  symbol: string;
+  start_date: string;
+  end_date: string;
+  strategy_id: string;
+  current_fold: number;
+  total_folds: number;
+  error: string | null;
+}

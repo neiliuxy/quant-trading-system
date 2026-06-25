@@ -8,6 +8,9 @@ import type {
   DatasetSpec,
   Job,
   StrategySpec,
+  WfoConfig,
+  WfoResult,
+  WfoRun,
 } from './types';
 
 export interface Stock {
@@ -113,6 +116,40 @@ export function deleteAllJobs(): Promise<{ status: string; deleted_count: number
   return request<{ status: string; deleted_count: number }>('/api/jobs', {
     method: 'DELETE',
   });
+}
+
+// WFO 端点的 400 错误体是 {"detail": "..."},需要把 detail 透传给用户。
+async function wfoRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...init,
+  });
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body?.detail) message = body.detail;
+    } catch {
+      /* keep default message */
+    }
+    throw new Error(message);
+  }
+  return response.json() as Promise<T>;
+}
+
+export function createWfo(payload: WfoConfig): Promise<WfoRun> {
+  return wfoRequest<WfoRun>('/api/wfo', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getWfoStatus(wfoId: number): Promise<WfoRun> {
+  return wfoRequest<WfoRun>(`/api/wfo/${wfoId}`);
+}
+
+export function getWfoResult(wfoId: number): Promise<WfoResult> {
+  return wfoRequest<WfoResult>(`/api/wfo/${wfoId}/result`);
 }
 
 export async function getStocks(query?: string): Promise<Stock[]> {
