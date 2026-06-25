@@ -20,6 +20,9 @@ import type { MaVisibility } from './panels/StockKlinePanel';
 import { IndexKlinePanel } from './panels/IndexKlinePanel';
 import DataManagementView from './data-management/DataManagementView';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
+import { WfoConfigForm } from './WfoConfigForm';
+import { WfoResultPage } from './WfoResultPage';
+import type { WfoRun, WfoResult } from './types';
 
 const defaultForm: BacktestFormValues = {
   symbol: '000001',
@@ -133,6 +136,8 @@ export default function App() {
   const [showGuide, setShowGuide] = useState(false);
   const [stockLookup, setStockLookup] = useState<Map<string, string>>(new Map());
   const [activeView, setActiveView] = useState<'backtest' | 'data'>('backtest');
+  const [activeWfoRun, setActiveWfoRun] = useState<WfoRun | null>(null);
+  const [wfoResult, setWfoResult] = useState<WfoResult | null>(null);
 
   function getStrategyName(id: string): string {
     const found = strategies.find(s => s.id === id);
@@ -510,6 +515,18 @@ export default function App() {
           onCompareMarketFilter={compareMarketFilter}
         />
 
+        <details className="wfo-config">
+          <summary>{t('wfo.configTitle')}</summary>
+          <WfoConfigForm
+            baseSymbol={runFormDefaults.symbol}
+            baseStart={runFormDefaults.start}
+            baseEnd={runFormDefaults.end}
+            baseStrategyId={runFormDefaults.strategy_id}
+            strategyParams={strategies.find(s => s.id === runFormDefaults.strategy_id)?.params ?? []}
+            onSubmitted={(run) => { setActiveWfoRun(run); setWfoResult(null); }}
+          />
+        </details>
+
         <section className="history">
           <div className="history-header">
             <h2>{t('history.title')}</h2>
@@ -551,6 +568,16 @@ export default function App() {
         ) : (
           <>
         {error && <div className="error">{error}</div>}
+        {activeWfoRun && (
+          <section className="panel wfo-panel">
+            <h2>{t('wfo.title')}</h2>
+            <WfoResultPage
+              run={activeWfoRun}
+              result={wfoResult}
+              onResult={setWfoResult}
+            />
+          </section>
+        )}
         {selectedJob && (
           <div className="result-header">
             <div>
