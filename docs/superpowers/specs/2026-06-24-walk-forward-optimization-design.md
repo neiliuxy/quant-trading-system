@@ -196,7 +196,7 @@ class WfoSummary:
     mean_is_sharpe: float            # 仅成功窗口的样本内 Sharpe 均值
     mean_oos_sharpe: float           # 非失败窗口（含 no_signal）的样本外 Sharpe 均值
     efficiency: float | None         # mean_oos_sharpe / mean_is_sharpe；mean_is_sharpe <= 0 时为 None
-    oos_win_folds: int               # 成功窗口中 oos_sharpe > 0 的个数
+    oos_win_folds: int               # 非失败窗口中 oos_sharpe > 0 的个数（含 no_signal）
     param_stability: dict[str, ParamStability]  # 每个被寻优参数的稳定性
 
 
