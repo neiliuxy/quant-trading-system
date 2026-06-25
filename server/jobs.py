@@ -154,3 +154,59 @@ def delete_all_jobs(conn) -> int:
     conn.execute('DELETE FROM jobs')
     conn.commit()
     return count
+
+
+# ---------- WFO helpers ----------
+
+def _wfo_run_key(config_json: str, code_version: str | None = None) -> str:
+    payload = {
+        'config': json.loads(config_json),
+        'code_version': code_version or current_code_version(),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def create_wfo_run(conn, config_json: str, strategy_id: str, symbol: str,
+                   start_date: str, end_date: str) -> dict[str, Any]:
+    run_key = _wfo_run_key(config_json)
+    cur = conn.execute(
+        """
+        INSERT INTO wfo_runs (
+            run_key, status, symbol, start_date, end_date,
+            strategy_id, config_json
+        ) VALUES (?, 'queued', ?, ?, ?, ?, ?)
+        """,
+        (run_key, symbol, start_date, end_date, strategy_id, config_json),
+    )
+    conn.commit()
+    return get_wfo_run(conn, cur.lastrowid)
+
+
+def get_wfo_run(conn, wfo_id: int) -> dict[str, Any] | None:
+    row = conn.execute('SELECT * FROM wfo_runs WHERE id = ?', (wfo_id,)).fetchone()
+    return dict(row) if row is not None else None
+
+
+def update_wfo_run_status(conn, wfo_id: int, status: str, error: str | None = None) -> None:
+    conn.execute(
+        "UPDATE wfo_runs SET status = ?, error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (status, error, wfo_id),
+    )
+    conn.commit()
+
+
+def update_wfo_run_progress(conn, wfo_id: int, current_fold: int, total_folds: int) -> None:
+    conn.execute(
+        "UPDATE wfo_runs SET current_fold = ?, total_folds = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (current_fold, total_folds, wfo_id),
+    )
+    conn.commit()
+
+
+def mark_wfo_run_completed(conn, wfo_id: int, artifact_path: str) -> None:
+    conn.execute(
+        "UPDATE wfo_runs SET status = 'completed', artifact_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (artifact_path, wfo_id),
+    )
+    conn.commit()
