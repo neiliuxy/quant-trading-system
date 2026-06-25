@@ -152,3 +152,22 @@ def load_data(symbol, start=None, end=None, include_index=False):
     index_df = load_shanghai_composite(start, end)
 
     return stock_df, index_df
+
+
+def default_trading_calendar(symbol: str, start: str, end: str) -> list[str]:
+    """WFO 引擎 trading_calendar 的默认实现:走 DataHub 取 stock_daily 日期索引。
+
+    返回 [start, end] 区间内按交易日排序的 YYYYMMDD 字符串列表;数据为空返回空列表。
+    """
+    from datahub.service import DataHub
+    from datahub.models import DatasetRequest
+    from server.db import init_db, DEFAULT_DB_PATH
+
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    hub = DataHub(root_dir=project_root, conn=init_db(DEFAULT_DB_PATH))
+    df = hub.get_dataset(DatasetRequest(
+        dataset_type='stock_daily', symbol=symbol, start=start, end=end,
+    )).frame
+    if df is None or df.empty:
+        return []
+    return sorted(df['date'].dt.strftime('%Y%m%d').tolist())
