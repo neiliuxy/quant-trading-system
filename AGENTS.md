@@ -2,8 +2,7 @@
 quant-trading-system 是一个面向 A 股日线的低频量化回测系统，核心能力包括：策略注册与回测、市场过滤评分、DataHub 数据缓存、FastAPI 后端任务系统、
 React/Vite Web 分析台、Walk-forward Optimization。
 
-  目录结构
-
+## 目录结构
   quant-trading-system/
   ├── strategies/      # 策略实现与注册表
   ├── backtest/        # 回测编排、CLI 入口、指标/成本/Walk-forward
@@ -18,7 +17,7 @@ React/Vite Web 分析台、Walk-forward Optimization。
   ├── data/            # 本地缓存、SQLite、回测结果，通常不提交
   └── logs/            # 运行日志，通常不提交
 
-  核心模块
+## 核心模块
 
   strategies/ 是策略层。每个策略通过 StrategySpec 声明策略 ID、名称、参数、策略类和所需额外数据。注册入口是 strategies/registry.py:1，当前包含
   b1_strategy、swing_ma_boll、bollinger_reversal、citic_wave、sector_rotation。
@@ -34,7 +33,7 @@ React/Vite Web 分析台、Walk-forward Optimization。
   web/ 是前端分析台。主容器是 web/src/App.tsx:1，API 封装在 web/src/api.ts:1。前端负责回测表单、策略参数动态渲染、任务轮询、K 线图、权益曲线、市场评
   分、WFO 结果和数据管理页面。
 
-  主数据流
+## 主数据流
 
   Web UI / CLI
     ↓
@@ -93,7 +92,7 @@ cd web && npm run dev
   Frontend: React, Vite, TypeScript, i18next, lightweight-charts, Recharts
   Testing: pytest, Vitest, Testing Library, Playwright
 
-  扩展方式
+## 扩展方式
 
   新增策略通常只需要三步：在 strategies/ 新增策略类，定义 StrategySpec，再注册到 strategies/registry.py。后端 /api/strategies 会自动暴露策略元数据，
   前端策略参数表单也会按 StrategySpec.params 动态生成。
@@ -101,7 +100,7 @@ cd web && npm run dev
   新增数据源应优先接入 datahub/，通过标准化、缓存和元数据记录统一管理。策略如果需要额外数据 feed，应在 StrategySpec.required_data 中声明，由回测服务
   统一加载。
 
-  ## Conventions
+## Conventions
 
 - Python 3，4 空格缩进
 - 函数/变量 `snake_case`，策略类 `PascalCase`
