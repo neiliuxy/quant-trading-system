@@ -4,7 +4,7 @@ from dataclasses import replace
 from difflib import SequenceMatcher
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -5612,6 +5612,7 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
         worker=_datahub_worker,
         max_workers=2,
     )
+    app.state.hub_factory = _make_datahub
 
     app.add_middleware(
         CORSMiddleware,
@@ -5875,5 +5876,101 @@ def create_app(db_path: str = DEFAULT_DB_PATH) -> FastAPI:
         if refresh is None:
             raise HTTPException(status_code=404, detail='refresh not found')
         return refresh
+
+    @app.post('/api/screener')
+    def create_screener(payload: dict):
+        from screening.config import ScreenerFilterConfig, ScreenerRequest, ScreenerScoreConfig
+        from server.jobs import create_screener_run
+        from server.screener_executor import submit_screener_background
+
+        try:
+            filter_cfg_dict = dict(payload.get('filter_config', {}))
+            score_cfg_dict = dict(payload.get('score_config', {}))
+            filter_cfg = ScreenerFilterConfig(**filter_cfg_dict)
+            score_cfg = ScreenerScoreConfig(**score_cfg_dict)
+            request = ScreenerRequest(
+                date=str(payload['date']),
+                universe_mode=str(payload.get('universe_mode', 'predefined')),
+                universe_symbol=payload.get('universe_symbol'),
+                custom_list=payload.get('custom_list'),
+                filter_config=filter_cfg,
+                score_config=score_cfg,
+                top_n=int(payload.get('top_n', 30)),
+                market_gate_mode=str(payload.get('market_gate_mode', 'hard')),
+                market_gate_threshold=float(payload.get('market_gate_threshold', 0.4)),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"配置无效: {exc}") from exc
+
+        config_json = json.dumps(request.config_dict(), ensure_ascii=False)
+        row = create_screener_run(
+            conn, config_json, request.date, request.universe_mode, request.universe_symbol,
+        )
+        submit_screener_background(conn, row['id'])
+        return {
+            'id': row['id'],
+            'status': row['status'],
+            'screening_date': request.date,
+            'universe_mode': request.universe_mode,
+            'universe_symbol': request.universe_symbol,
+            'top_n': request.top_n,
+            'error': None,
+        }
+
+    @app.get('/api/screener/recent-valid-date')
+    def screener_recent_valid_date(request: Request):
+        """Return the latest trading day present in index_daily(sh000001) cache.
+
+        Used by the frontend to default the screening date to the most recent
+        day for which screener inputs (market score, index data, stock bars)
+        are actually available. Falls back to today if cache is empty.
+        """
+        import pandas as pd
+        from datahub.models import DatasetRequest, DataHubError
+        try:
+            hub = request.app.state.hub_factory()
+            frame = hub.get_dataset(
+                DatasetRequest(
+                    dataset_type='index_daily',
+                    symbol='sh000001',
+                    start='19900101',
+                    end='29991231',
+                )
+            ).frame
+        except DataHubError:
+            frame = None
+
+        if frame is None or frame.empty:
+            from datetime import date
+            return {'date': date.today().strftime('%Y%m%d'), 'source': 'today-fallback'}
+
+        latest = pd.to_datetime(frame['date']).max()
+        return {'date': latest.strftime('%Y%m%d'), 'source': 'index_cache'}
+
+    @app.get('/api/screener/{run_id}')
+    def screener_status(run_id: int):
+        from server.jobs import get_screener_run
+        row = get_screener_run(conn, run_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail='screener run not found')
+        return {
+            'id': row['id'],
+            'status': row['status'],
+            'screening_date': row['screening_date'],
+            'universe_mode': row['universe_mode'],
+            'universe_symbol': row['universe_symbol'],
+            'total_in_universe': row['total_in_universe'],
+            'total_passed_filters': row['total_passed_filters'],
+            'error': row['error'],
+        }
+
+    @app.get('/api/screener/{run_id}/result')
+    def screener_result(run_id: int):
+        from server.jobs import get_screener_run
+        row = get_screener_run(conn, run_id)
+        if row is None or not row.get('artifact_path'):
+            raise HTTPException(status_code=404, detail='result not found')
+        with open(row['artifact_path'], encoding='utf-8') as f:
+            return json.load(f)
 
     return app

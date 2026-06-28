@@ -7,6 +7,8 @@ import type {
   DataRefreshPayload,
   DatasetSpec,
   Job,
+  ScreenerResult,
+  ScreenerRun,
   StrategySpec,
   WfoConfig,
   WfoResult,
@@ -150,6 +152,38 @@ export function getWfoStatus(wfoId: number): Promise<WfoRun> {
 
 export function getWfoResult(wfoId: number): Promise<WfoResult> {
   return wfoRequest<WfoResult>(`/api/wfo/${wfoId}/result`);
+}
+
+export function createScreener(payload: {
+  date: string;
+  universe_mode: 'predefined' | 'custom' | 'full_market';
+  universe_symbol?: string | null;
+  custom_list?: string[] | null;
+  top_n?: number;
+  market_gate_mode?: 'hard' | 'soft' | 'off';
+  market_gate_threshold?: number;
+}): Promise<ScreenerRun> {
+  return request<ScreenerRun>('/api/screener', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getScreenerStatus(runId: number): Promise<ScreenerRun> {
+  return request<ScreenerRun>(`/api/screener/${runId}`);
+}
+
+export function getScreenerResult(runId: number): Promise<ScreenerResult> {
+  return request<ScreenerResult>(`/api/screener/${runId}/result`);
+}
+
+export interface RecentValidDate {
+  date: string;
+  source: 'index_cache' | 'today-fallback';
+}
+
+export function getRecentValidScreeningDate(): Promise<RecentValidDate> {
+  return request<RecentValidDate>('/api/screener/recent-valid-date');
 }
 
 export async function getStocks(query?: string): Promise<Stock[]> {

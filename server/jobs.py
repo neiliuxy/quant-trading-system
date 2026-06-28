@@ -210,3 +210,59 @@ def mark_wfo_run_completed(conn, wfo_id: int, artifact_path: str) -> None:
         (artifact_path, wfo_id),
     )
     conn.commit()
+
+
+# ---------- Screener helpers ----------
+
+def _screener_run_key(config_json: str, code_version: str | None = None) -> str:
+    payload = {
+        'config': json.loads(config_json),
+        'code_version': code_version or current_code_version(),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def create_screener_run(
+    conn, config_json: str, screening_date: str, universe_mode: str, universe_symbol: str | None,
+) -> dict[str, Any]:
+    run_key = _screener_run_key(config_json)
+    cur = conn.execute(
+        """
+        INSERT INTO screener_runs (
+            run_key, status, screening_date, universe_mode, universe_symbol, config_json
+        ) VALUES (?, 'queued', ?, ?, ?, ?)
+        """,
+        (run_key, screening_date, universe_mode, universe_symbol, config_json),
+    )
+    conn.commit()
+    return get_screener_run(conn, cur.lastrowid)
+
+
+def get_screener_run(conn, run_id: int) -> dict[str, Any] | None:
+    row = conn.execute('SELECT * FROM screener_runs WHERE id = ?', (run_id,)).fetchone()
+    return dict(row) if row is not None else None
+
+
+def update_screener_run_status(conn, run_id: int, status: str, error: str | None = None) -> None:
+    conn.execute(
+        "UPDATE screener_runs SET status = ?, error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (status, error, run_id),
+    )
+    conn.commit()
+
+
+def mark_screener_run_completed(
+    conn, run_id: int, total_in: int, total_passed: int, artifact_path: str,
+) -> None:
+    conn.execute(
+        """
+        UPDATE screener_runs SET
+            status = 'completed', artifact_path = ?,
+            total_in_universe = ?, total_passed_filters = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """,
+        (artifact_path, total_in, total_passed, run_id),
+    )
+    conn.commit()

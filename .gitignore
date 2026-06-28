@@ -20,6 +20,8 @@ data/*.sqlite-shm
 data/*.sqlite-wal
 data/results/
 data/cache/
+data/screener/
+personal-trading-data-platform/
 node_modules/
 web/node_modules/
 web/dist/

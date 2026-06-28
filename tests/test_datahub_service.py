@@ -20,6 +20,7 @@ def _frame():
             "low": [0.5],
             "close": [1.5],
             "volume": [100.0],
+            "amount": [1000.0],
         }
     )
 

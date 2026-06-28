@@ -26,6 +26,7 @@ def test_stock_daily_uses_tencent_fallback_when_eastmoney_fails(monkeypatch):
                 "high": [2.0],
                 "low": [0.5],
                 "close": [1.5],
+                "volume": [10.0],
                 "amount": [100.0],
             }
         )
@@ -37,8 +38,9 @@ def test_stock_daily_uses_tencent_fallback_when_eastmoney_fails(monkeypatch):
     df = source.fetch(DatasetRequest("stock_daily", symbol="000001", start="20240101", end="20240131"))
 
     assert calls == {"eastmoney": 3, "tencent": 1}
-    assert list(df.columns) == ["date", "open", "high", "low", "close", "volume"]
-    assert df.loc[0, "volume"] == 100.0
+    assert list(df.columns) == ["date", "open", "high", "low", "close", "volume", "amount"]
+    assert df.loc[0, "volume"] == 10.0
+    assert df.loc[0, "amount"] == 100.0
 
 
 def test_index_daily_adds_amount_when_missing(monkeypatch):

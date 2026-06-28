@@ -30,7 +30,7 @@ from datahub.sources import AkshareSource
 class DataHub:
     """Central facade for dataset reads: cache lookup, source fetch, refresh logging."""
 
-    SCHEMA_VERSION = "v1"
+    SCHEMA_VERSION = "v2"
 
     def __init__(self, root_dir: str, conn, source=None, executor=None, cache=None):
         self.root_dir = root_dir

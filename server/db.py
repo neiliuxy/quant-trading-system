@@ -118,6 +118,23 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
         CREATE INDEX IF NOT EXISTS idx_wfo_runs_run_key ON wfo_runs(run_key);
+
+        CREATE TABLE IF NOT EXISTS screener_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_key TEXT NOT NULL,
+            status TEXT NOT NULL,
+            screening_date TEXT NOT NULL,
+            universe_mode TEXT NOT NULL,
+            universe_symbol TEXT,
+            config_json TEXT NOT NULL,
+            total_in_universe INTEGER DEFAULT 0,
+            total_passed_filters INTEGER DEFAULT 0,
+            artifact_path TEXT,
+            error TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_screener_runs_run_key ON screener_runs(run_key);
         """
     )
     _migrate_jobs_schema(conn)

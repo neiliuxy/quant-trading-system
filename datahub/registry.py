@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datahub.models import CachePolicy, DatasetRequest, DatasetSpec, DataHubError, INDEX_COLUMNS, OHLCV_COLUMNS
+from datahub.models import CachePolicy, DatasetRequest, DatasetSpec, DataHubError, INDEX_COLUMNS, INDEX_CONSTITUENT_COLUMNS, OHLCV_COLUMNS, STOCK_DAILY_COLUMNS, STOCK_PROFILE_COLUMNS
 
 
 _SPECS = {
     "stock_daily": DatasetSpec(
         dataset_type="stock_daily",
         label="A-share daily bars",
-        columns=OHLCV_COLUMNS,
+        columns=STOCK_DAILY_COLUMNS,
         cache_policy=CachePolicy(ttl_seconds=86400, historical_ttl_seconds=None),
         source_name="akshare",
         symbol_required=True,
@@ -35,6 +35,22 @@ _SPECS = {
         cache_policy=CachePolicy(ttl_seconds=86400, historical_ttl_seconds=None),
         source_name="akshare",
         symbol_required=False,
+    ),
+    "stock_profile": DatasetSpec(
+        dataset_type="stock_profile",
+        label="A-share stock profile snapshot",
+        columns=STOCK_PROFILE_COLUMNS,
+        cache_policy=CachePolicy(ttl_seconds=86400 * 7, historical_ttl_seconds=None),
+        source_name="akshare",
+        symbol_required=False,
+    ),
+    "index_constituents": DatasetSpec(
+        dataset_type="index_constituents",
+        label="Index constituent snapshot",
+        columns=INDEX_CONSTITUENT_COLUMNS,
+        cache_policy=CachePolicy(ttl_seconds=86400 * 7, historical_ttl_seconds=None),
+        source_name="akshare",
+        symbol_required=True,
     ),
 }
 

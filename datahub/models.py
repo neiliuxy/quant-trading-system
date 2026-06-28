@@ -7,6 +7,9 @@ import pandas as pd
 
 OHLCV_COLUMNS = ("date", "open", "high", "low", "close", "volume")
 INDEX_COLUMNS = ("date", "open", "high", "low", "close", "volume", "amount")
+STOCK_DAILY_COLUMNS = OHLCV_COLUMNS + ("amount",)
+STOCK_PROFILE_COLUMNS = ("date", "code", "name", "is_st")
+INDEX_CONSTITUENT_COLUMNS = ("date", "code", "weight")
 
 
 class DataHubError(Exception):

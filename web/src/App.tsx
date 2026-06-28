@@ -22,6 +22,7 @@ import DataManagementView from './data-management/DataManagementView';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { WfoConfigForm } from './WfoConfigForm';
 import { WfoResultPage } from './WfoResultPage';
+import { ScreenerPage } from './ScreenerPage';
 import type { WfoRun, WfoResult } from './types';
 
 const defaultForm: BacktestFormValues = {
@@ -48,7 +49,16 @@ function getDefaultEndDate(): string {
   return date.toISOString().split('T')[0].replace(/-/g, '');
 }
 
-function formatPct(value: number) {
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function formatNumber(value: unknown, digits = 2) {
+  return isFiniteNumber(value) ? value.toFixed(digits) : 'N/A';
+}
+
+function formatPct(value: unknown) {
+  if (!isFiniteNumber(value)) return 'N/A';
   return `${value.toFixed(2)}%`;
 }
 
@@ -135,7 +145,7 @@ export default function App() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [stockLookup, setStockLookup] = useState<Map<string, string>>(new Map());
-  const [activeView, setActiveView] = useState<'backtest' | 'data'>('backtest');
+  const [activeView, setActiveView] = useState<'backtest' | 'screener' | 'data'>('backtest');
   const [activeWfoRun, setActiveWfoRun] = useState<WfoRun | null>(null);
   const [wfoResult, setWfoResult] = useState<WfoResult | null>(null);
 
@@ -241,9 +251,9 @@ export default function App() {
     // 主指标：最终净值（绝对收益）
     const primary = {
       label: t('kpi.finalValue'),
-      value: result.final_value.toFixed(2),
+      value: formatNumber(result.final_value),
       sub: t('kpi.subFormat', {
-        initial: result.initial_cash.toFixed(0),
+        initial: formatNumber(result.initial_cash, 0),
         return: formatPct(result.total_return_pct),
       }),
     };
@@ -251,14 +261,14 @@ export default function App() {
     const secondary = [
       { label: t('kpi.winRate'), value: formatPct(result.win_rate_pct) },
       { label: t('kpi.maxDrawdown'), value: formatPct(result.max_drawdown_pct) },
-      { label: t('kpi.tradeCount'), value: String(result.trade_count) },
-      { label: t('kpi.sharpe'), value: result.sharpe.toFixed(2) },
+      { label: t('kpi.tradeCount'), value: isFiniteNumber(result.trade_count) ? String(result.trade_count) : 'N/A' },
+      { label: t('kpi.sharpe'), value: formatNumber(result.sharpe) },
       { label: t('kpi.annualReturn'), value: formatPct(result.annual_return_pct) },
-      { label: t('kpi.profitLossRatio'), value: result.profit_loss_ratio.toFixed(2) },
+      { label: t('kpi.profitLossRatio'), value: formatNumber(result.profit_loss_ratio) },
       { label: t('kpi.benchmarkReturn'), value: formatPct(result.benchmark_return_pct) },
       { label: t('kpi.excessReturn'), value: formatPct(result.excess_return_pct) },
-      { label: t('kpi.avgScore'), value: result.market_score_summary.mean?.toFixed(2) ?? 'N/A' },
-      { label: t('kpi.initialCash'), value: result.initial_cash.toFixed(0) },
+      { label: t('kpi.avgScore'), value: formatNumber(result.market_score_summary?.mean) },
+      { label: t('kpi.initialCash'), value: formatNumber(result.initial_cash, 0) },
     ];
     return { primary, secondary };
   }, [result, t]);
@@ -494,6 +504,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={activeView === 'screener' ? 'active' : ''}
+            onClick={() => setActiveView('screener')}
+          >
+            {t('nav.screener')}
+          </button>
+          <button
+            type="button"
             className={activeView === 'data' ? 'active' : ''}
             onClick={() => setActiveView('data')}
           >
@@ -563,7 +580,9 @@ export default function App() {
       </aside>
 
       <section className="content-panel">
-        {activeView === 'data' ? (
+        {activeView === 'screener' ? (
+          <ScreenerPage />
+        ) : activeView === 'data' ? (
           <DataManagementView />
         ) : (
           <>
@@ -782,4 +801,3 @@ export default function App() {
     </main>
   );
 }
-

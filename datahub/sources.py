@@ -51,6 +51,10 @@ class AkshareSource:
             return self.fetch_etf_daily(request)
         if request.dataset_type == "market_turnover":
             return self.fetch_market_turnover(request)
+        if request.dataset_type == "stock_profile":
+            return self.fetch_stock_profile(request)
+        if request.dataset_type == "index_constituents":
+            return self.fetch_index_constituents(request)
         raise DataHubError("unsupported_dataset", f"Unsupported dataset type: {request.dataset_type}")
 
     def fetch_stock_daily(self, request: DatasetRequest) -> pd.DataFrame:
@@ -64,7 +68,7 @@ class AkshareSource:
                     end_date=request.end,
                 )
                 df = df[list(_AKSHARE_COLUMN_MAP.keys())]
-                df.columns = ["date", "open", "high", "low", "close", "volume"]
+                df.columns = list(_AKSHARE_COLUMN_MAP.values())
                 return df
             except Exception as exc:
                 last_err = exc
@@ -79,12 +83,75 @@ class AkshareSource:
                     start_date=request.start,
                     end_date=request.end,
                 )
-                df = df.rename(columns={"amount": "volume"})
-                return df[["date", "open", "high", "low", "close", "volume"]]
+                tx_df = pd.DataFrame({
+                    "date": df["date"],
+                    "open": df["open"],
+                    "high": df["high"],
+                    "low": df["low"],
+                    "close": df["close"],
+                    "volume": df["volume"],
+                    "amount": df["amount"],
+                })
+                return tx_df
             except Exception:
                 if attempt < 2:
                     time.sleep(1)
         raise DataHubError("source_unavailable", f"All stock sources failed for {request.symbol}") from last_err
+
+    def fetch_stock_profile(self, request: DatasetRequest) -> pd.DataFrame:
+        """Snapshot of A-share static info: code, name, is_st (name prefix).
+
+        Snapshot dataset — call with start=end=fetch date. list_date is not
+        exposed by akshare's bulk APIs; callers should derive it from the
+        earliest cached stock_daily date per symbol.
+        """
+        last_err = None
+        for attempt in range(1, 3):
+            try:
+                df = ak.stock_info_a_code_name()
+                df["is_st"] = df["name"].astype(str).str.startswith(("ST", "*ST"))
+                snapshot_date = pd.to_datetime(request.start).normalize()
+                df["date"] = snapshot_date
+                return df[["date", "code", "name", "is_st"]].copy()
+            except Exception as exc:
+                last_err = exc
+                if attempt < 2:
+                    time.sleep(2)
+
+        try:
+            df = ak.stock_zh_a_spot_em()
+            df["is_st"] = df["名称"].astype(str).str.startswith(("ST", "*ST"))
+            snapshot_date = pd.to_datetime(request.start).normalize()
+            df["date"] = snapshot_date
+            return df[["date", "代码", "名称", "is_st"]].rename(
+                columns={"代码": "code", "名称": "name"}
+            ).copy()
+        except Exception as exc:
+            raise DataHubError(
+                "source_unavailable", f"All profile sources failed: {exc}"
+            ) from last_err
+
+    def fetch_index_constituents(self, request: DatasetRequest) -> pd.DataFrame:
+        """Snapshot of an index's current constituents (csindex).
+
+        Symbol format: '000300' (CSI 300), '000905' (CSI 500). akshare returns
+        the current snapshot only — historical constituent changes are not
+        available through this source.
+        """
+        try:
+            df = ak.index_stock_cons_weight_csindex(symbol=request.symbol)
+        except Exception as exc:
+            raise DataHubError(
+                "source_unavailable", f"Index constituents failed for {request.symbol}"
+            ) from exc
+
+        snapshot_date = pd.to_datetime(df["日期"].iloc[0]).normalize()
+        out = pd.DataFrame({
+            "date": [snapshot_date] * len(df),
+            "code": df["成分券代码"].astype(str).str.zfill(6).values,
+            "weight": df["权重"].astype(float).values,
+        })
+        return out[["date", "code", "weight"]].copy()
 
     def fetch_index_daily(self, request: DatasetRequest) -> pd.DataFrame:
         try:

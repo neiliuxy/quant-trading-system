@@ -18,9 +18,11 @@ from datahub.registry import (
 def test_registry_lists_first_version_datasets():
     specs = {spec.dataset_type: spec for spec in list_dataset_specs()}
 
-    assert set(specs) == {"stock_daily", "index_daily", "etf_daily", "market_turnover"}
+    assert set(specs) == {"stock_daily", "index_daily", "etf_daily", "market_turnover", "stock_profile", "index_constituents"}
     assert specs["stock_daily"].symbol_required is True
     assert specs["market_turnover"].symbol_required is False
+    assert specs["stock_profile"].symbol_required is False
+    assert specs["index_constituents"].symbol_required is True
 
 
 def test_feed_ids_resolve_to_dataset_requests():

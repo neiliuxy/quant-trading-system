@@ -88,6 +88,55 @@ describe('App view switching', () => {
     expect(await screen.findByRole('button', { name: new RegExp(i18n.t('form.runBacktest')) })).toBeInTheDocument();
     expect(screen.getByText(i18n.t('history.title'))).toBeInTheDocument();
   });
+
+  it('keeps controls visible when a legacy result is missing newer risk metrics', async () => {
+    await i18n.changeLanguage('zh');
+    vi.mocked(listJobs).mockResolvedValue([
+      {
+        id: 1,
+        run_key: 'legacy',
+        status: 'completed',
+        symbol: '000001',
+        start_date: '20240101',
+        end_date: '20240131',
+        cash: 100000,
+        use_market_filter: true,
+        risk_percent: 0.95,
+        fast_ma: 10,
+        slow_ma: 20,
+        strategy_id: 'swing_ma_boll',
+        strategy_params_json: '{}',
+        code_version: '',
+        cache_hit: false,
+        error: null,
+        created_at: '2026-06-20 10:00:00',
+        updated_at: '2026-06-20 10:00:00',
+      },
+    ]);
+    vi.mocked(getResult).mockResolvedValue({
+      symbol: '000001',
+      start: '20240101',
+      end: '20240131',
+      initial_cash: 100000,
+      final_value: 100000,
+      total_return_pct: 0,
+      max_drawdown_pct: 0,
+      trade_count: 0,
+      win_rate_pct: 0,
+      equity_curve: [],
+      trades: [],
+      market_scores: [],
+      market_score_summary: {},
+      price_data: [],
+      index_data: [],
+    } as any);
+
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: new RegExp(i18n.t('form.runBacktest')) })).toBeInTheDocument();
+    expect(await screen.findByText(i18n.t('kpi.sharpe'))).toBeInTheDocument();
+    expect(screen.getAllByText('N/A').length).toBeGreaterThan(0);
+  });
 });
 
 describe('App locale switching', () => {

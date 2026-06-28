@@ -255,3 +255,52 @@ export interface WfoRun {
   total_folds: number;
   error: string | null;
 }
+
+export interface ScreenerRun {
+  id: number;
+  status: JobStatus;
+  screening_date: string;
+  universe_mode: string;
+  universe_symbol: string | null;
+  total_in_universe: number;
+  total_passed_filters: number;
+  error: string | null;
+}
+
+export interface ScreenerCandidateScores {
+  relative_strength: number;
+  trend_quality: number;
+  drawdown: number;
+  vol_price: number;
+  liquidity: number;
+}
+
+export interface ScreenerCandidate {
+  code: string;
+  name: string;
+  universe: string;
+  filters: Record<string, boolean>;
+  scores: ScreenerCandidateScores;
+  total_score: number;
+  rank: number;
+  reason: string;
+}
+
+export interface ScreenerMarketScore {
+  total: number;
+  trend: number;
+  sentiment: number;
+  volume: number;
+}
+
+export interface ScreenerResult {
+  date: string;
+  universe_mode: string;
+  universe: string;
+  market_score: ScreenerMarketScore;
+  market_gate_passed: boolean;
+  total_in_universe: number;
+  total_passed_filters: number;
+  top_n: number;
+  candidates: ScreenerCandidate[];
+}
